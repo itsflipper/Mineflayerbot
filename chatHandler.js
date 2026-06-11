@@ -1,21 +1,26 @@
 const { handleCommand } = require('./commands');
 
-function registerChatHandlers(bot) {
-    bot.on('chat', (username, message) => {
-        handleCommand(bot, username, message, 'chat').catch(console.error);
-    });
+const WHISPER_PATTERN = /^\[.*\] (.*) whispers: (.*)$/;
 
-    bot.on('message', (jsonMsg) => {
-        const text = jsonMsg.toString();
-        console.log('[MSG]', jsonMsg.toString());
-        const whisperMatch = text.match(/^\[.*\] (.*) whispers: (.*)$/);
-        if (whisperMatch) {
-        const [,username, message] = whisperMatch;
-        handleCommand(bot, username, message, 'whisper').catch(console.error);
-        return;
-        }
-    });
+function handleIncomingMessage(bot, jsonMsg) {
+  const text = jsonMsg.toString();
+  console.log('[MSG]', text);
+
+  const whisperMatch = text.match(WHISPER_PATTERN);
+  if (!whisperMatch) return;
+
+  const [, username, message] = whisperMatch;
+  handleCommand(bot, username, message, 'whisper').catch(console.error);
 }
+
+function registerChatHandlers(bot) {
+  bot.on('chat', (username, message) => {
+    handleCommand(bot, username, message, 'chat').catch(console.error);
+  });
+
+  bot.on('message', (jsonMsg) => handleIncomingMessage(bot, jsonMsg));
+}
+
 module.exports = {
-    registerChatHandlers
+  registerChatHandlers
 };

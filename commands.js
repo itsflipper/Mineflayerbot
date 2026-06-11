@@ -15,21 +15,15 @@ const commands = {
     run: async ({ reply }) => {
       const commandNames = Object.keys(commands).sort((a, b) => a.localeCompare(b));
       const helpText = commandNames
-        .map(name => {
-            const commandEntry = commands[name];
-            const aliases = commandEntry.aliases.length > 0
-              ? ` (${commandEntry.aliases.join(', ')})`
-                : '';
-                return `${name}${aliases}`;
-            })
+        .map(name => formatCommandEntry(name, commands[name]))
         .join(' | ');
-      reply (`Available commands: ${helpText}`);
+      reply(`Available commands: ${helpText}`);
     }
   },
   pos: {
     description: 'Displays the bot\'s current position.',
     aliases: ['position'],
-    run: async ({ bot,reply }) => {
+    run: async ({ bot, reply }) => {
       const pos = bot.entity.position;
       reply(`x=${pos.x.toFixed(2)}, y=${pos.y.toFixed(2)}, z=${pos.z.toFixed(2)}`);
     }
@@ -43,71 +37,85 @@ const commands = {
   },
 };
 
-function resolveCommandsName (inputName) {
-    const name = inputName.toLowerCase();
-    if (commands[name]) return name;
-    for (const commandName of Object.keys(commands)) {
-        const command = commands[commandName];
-        if (command.aliases && command.aliases.includes(name)) {
-            return commandName;
-        }
-    }
-    return null;
+function formatCommandEntry(name, commandEntry) {
+  if (commandEntry.aliases.length === 0) return name;
+  return `${name} (${commandEntry.aliases.join(', ')})`;
+}
+
+function resolveCommandsName(inputName) {
+  const name = inputName.toLowerCase();
+  if (commands[name]) return name;
+
+  const match = Object.entries(commands)
+    .find(([, command]) => command.aliases.includes(name));
+
+  return match ? match[0] : null;
+}
+
+function splitMessageIntoParts(text) {
+  const parts = text.split(' ').filter(Boolean);
+  return { commandName: parts[0]?.toLowerCase(), args: parts.slice(1) };
 }
 
 function parseCommand(message, source) {
-    const text = message.trim();
-    if (source === 'chat') {
-        if (text.startsWith('!')) {
-            const parts = text.slice(1).split(' ').filter(Boolean);
-            return { commandName: parts[0].toLowerCase(), args: parts.slice(1), isPrivate: false };
-        }
-        if (text.startsWith('#')) {
-            const parts = text.slice(1).split(' ').filter(Boolean);
-            return { commandName: parts[0].toLowerCase(), args: parts.slice(1), isPrivate: true };
-        }
-        return null;
+  const text = message.trim();
+
+  if (source === 'chat') {
+    if (text.startsWith('!')) {
+      const { commandName, args } = splitMessageIntoParts(text.slice(1));
+      return { commandName, args, isPrivate: false };
     }
-    if (source === 'whisper') {
-        const withoutPrefix = text.startsWith('!') ? text.slice(1) : text;
-        const parts = withoutPrefix.split(' ').filter(Boolean);
-        return { commandName: parts[0].toLowerCase(), args: parts.slice(1), isPrivate: true };
+    if (text.startsWith('#')) {
+      const { commandName, args } = splitMessageIntoParts(text.slice(1));
+      return { commandName, args, isPrivate: true };
     }
     return null;
+  }
+
+  if (source === 'whisper') {
+    const withoutPrefix = text.startsWith('!') ? text.slice(1) : text;
+    const { commandName, args } = splitMessageIntoParts(withoutPrefix);
+    return { commandName, args, isPrivate: true };
+  }
+
+  return null;
+}
+
+function createReply(bot, username, source, isPrivate) {
+  return (text) => {
+    if (source === 'whisper' || isPrivate) {
+      bot.whisper(username, text);
+      return;
+    }
+    bot.chat(text);
+  };
 }
 
 async function handleCommand(bot, username, message, source) {
   if (username === bot.username) return;
+
   const parsed = parseCommand(message, source);
   if (!parsed) return;
+
+  const reply = createReply(bot, username, source, parsed.isPrivate);
+
   const realCommandName = resolveCommandsName(parsed.commandName);
-  const reply = (text) => {
-      if (source === 'whisper' || parsed.isPrivate) {
-          bot.whisper(username, text);
-      } else {
-          bot.chat(text);
-      }
-  };
   if (!realCommandName) {
-      reply(`Unknown command: ${parsed.commandName}`);
-      return;
+    reply(`Unknown command: ${parsed.commandName}`);
+    return;
   }
+
   const commandEntry = commands[realCommandName];
   try {
-      await commandEntry.run({ 
-          bot, 
-          username,
-          args: parsed.args, 
-          source,
-          reply
-      });
+    await commandEntry.run({ bot, username, args: parsed.args, source, reply });
   } catch (err) {
-      console.error('[Command Error]', err);
-      reply(`Error occurred while executing the command: ${err.message}`);
+    console.error('[Command Error]', err);
+    reply(`Error occurred while executing the command: ${err.message}`);
   }
 }
+
 module.exports = {
-    commands,
-    parseCommand,
-    handleCommand
+  commands,
+  parseCommand,
+  handleCommand
 };
