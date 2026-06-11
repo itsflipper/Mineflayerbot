@@ -34,17 +34,10 @@ LAN World Plug-n-Play / mcwifipnp
 
 This mod is useful for setting a fixed LAN port and adjusting LAN connection options.
 
-When opening your Minecraft world to LAN, note the displayed port, for example:
-
-```txt
-Local game hosted on port 33303
-```
-
-The bot must use exactly that port in `config.json`.
 
 ## Configuration
 
-Before starting the bot, add a new File `config.json`:
+Before starting the bot, add a new File `config.json` or edit it:
 
 ```json
 {
@@ -119,6 +112,7 @@ On servers, use Minecraft private messages:
 ## Current Commands
 
 ```txt
+help  - Bot sends cmd list
 ping  - Bot replies with Pong!
 pos   - Bot returns its current position
 bye   - Bot says goodbye and disconnects cleanly

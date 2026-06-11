@@ -22,11 +22,7 @@ function createBot() {
     const mcData = require('minecraft-data')(bot.version);
     const defaultMove = new Movements(bot, mcData);
     bot.pathfinder.setMovements(defaultMove);
-    bot.chat('Bot ist online, schreibe !bye um mich zu verabschieden!');
-
-    // Example: Move to a specific block (x=10, y=64, z=10)
-    //const goal = new GoalBlock(10, 64, 10);
-    // bot.pathfinder.setGoal(goal);
+    bot.chat('Bot is online, say !help for commands!');
   });
 
   bot.on('kicked', (reason) => {
