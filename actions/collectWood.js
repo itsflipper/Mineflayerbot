@@ -1,26 +1,8 @@
-const { goals } = require('mineflayer-pathfinder');
 const config = require('../config');
 const { canDig } = require('../safety/baseProtector');
-const { LOG_NAMES } = require('./woodTypes');
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitTicks(bot, ticks) {
-  if (typeof bot.waitForTicks === 'function') {
-    await bot.waitForTicks(ticks);
-    return;
-  }
-
-  await wait(ticks * 50);
-}
-
-function countLogs(bot) {
-  return bot.inventory.items()
-    .filter(item => LOG_NAMES.includes(item.name))
-    .reduce((sum, item) => sum + item.count, 0);
-}
+const { wait, waitTicks } = require('../utils/timing');
+const { gotoNearPosition, findDroppedItemNear } = require('./navigation');
+const { LOG_NAMES, countLogs } = require('./woodTypes');
 
 function hasTargetLogCount(bot, minLogCount) {
   return countLogs(bot) >= minLogCount;
@@ -35,18 +17,6 @@ async function waitForLogCount(bot, minLogCount, timeoutMs = 2000) {
   }
 
   return hasTargetLogCount(bot, minLogCount);
-}
-
-async function stopPathfinder(bot) {
-  if (bot.pathfinder) {
-    bot.pathfinder.setGoal(null);
-  }
-
-  if (typeof bot.clearControlStates === 'function') {
-    bot.clearControlStates();
-  }
-
-  await waitTicks(bot, 2);
 }
 
 function findNearestDiggableLog(bot, maxDistance = 32) {
@@ -72,29 +42,13 @@ function findNearestDiggableLog(bot, maxDistance = 32) {
   return { block: null, reason: 'all_logs_protected' };
 }
 
-function findNearbyDroppedItem(bot, maxDistance = 8) {
-  return Object.values(bot.entities).find((entity) => {
-    if (entity.name !== 'item') return false;
-    return bot.entity.position.distanceTo(entity.position) <= maxDistance;
-  });
-}
-
 async function collectDroppedItemNearby(bot, minLogCount) {
-  const droppedItem = findNearbyDroppedItem(bot, 8);
+  const droppedItem = findDroppedItemNear(bot, bot.entity.position, 8);
   if (!droppedItem) return false;
 
-  const goal = new goals.GoalNear(
-    droppedItem.position.x,
-    droppedItem.position.y,
-    droppedItem.position.z,
-    1
-  );
+  const gotoResult = await gotoNearPosition(bot, droppedItem.position, 1, 'goto_dropped_log');
 
-  try {
-    await bot.pathfinder.goto(goal);
-  } catch (err) {
-    await stopPathfinder(bot);
-
+  if (!gotoResult.success) {
     if (hasTargetLogCount(bot, minLogCount)) {
       return true;
     }
@@ -113,42 +67,28 @@ async function equipAxeIfAvailable(bot) {
 }
 
 async function gotoNearBlock(bot, block, minLogCount) {
-  const goal = new goals.GoalNear(
-    block.position.x,
-    block.position.y,
-    block.position.z,
-    3
-  );
+  const gotoResult = await gotoNearPosition(bot, block.position, 3, `goto_${block.name}`);
 
-  try {
-    await bot.pathfinder.goto(goal);
-    return { success: true };
-  } catch (err) {
-    await stopPathfinder(bot);
+  if (gotoResult.success) return gotoResult;
 
-    if (hasTargetLogCount(bot, minLogCount)) {
-      return {
-        success: true,
-        recovered: true,
-        warning: err.message
-      };
-    }
-
-    const distance = bot.entity.position.distanceTo(block.position);
-    if (distance <= 5) {
-      return {
-        success: true,
-        closeEnough: true,
-        warning: err.message
-      };
-    }
-
+  if (hasTargetLogCount(bot, minLogCount)) {
     return {
-      success: false,
-      reason: 'path_failed',
-      error: err.message
+      success: true,
+      recovered: true,
+      warning: gotoResult.error
     };
   }
+
+  const distance = bot.entity.position.distanceTo(block.position);
+  if (distance <= 5) {
+    return {
+      success: true,
+      closeEnough: true,
+      warning: gotoResult.error
+    };
+  }
+
+  return gotoResult;
 }
 
 async function digLog(bot, logBlock, minLogCount) {

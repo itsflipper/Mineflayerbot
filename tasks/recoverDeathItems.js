@@ -1,7 +1,7 @@
-const { Vec3 } = require('vec3');
-const { goals } = require('mineflayer-pathfinder');
 const { botState } = require('../state/botState');
 const { wait, waitTicks } = require('../utils/timing');
+const { toVec3, toBlockPosition } = require('../utils/position');
+const { goalNear, goalBlock, safeGoto, getDroppedItemsNear } = require('../actions/navigation');
 const { STATUS } = require('./taskRunner');
 
 const RECOVERY_RADIUS = 10;
@@ -24,10 +24,6 @@ const SCOUT_OFFSETS = [
   { x: 0, z: -5 }
 ];
 
-function toVec3(position) {
-  return new Vec3(position.x, position.y, position.z);
-}
-
 function getDistanceTo(bot, position) {
   return bot.entity.position.distanceTo(position);
 }
@@ -36,94 +32,41 @@ function isWithinDistance(distance, maxDistance) {
   return distance <= maxDistance;
 }
 
-function createPathSuccessWithWarning(error) {
+function createPathSuccessWithWarning(warning) {
   return {
     success: true,
     closeEnough: true,
-    warning: error.message
+    warning
   };
-}
-
-function createPathFailure(label, error, distance, target = null) {
-  const result = {
-    success: false,
-    reason: 'path_failed',
-    label,
-    error: error.message,
-    distance
-  };
-
-  if (!target) return result;
-
-  return {
-    ...result,
-    target
-  };
-}
-
-async function stopPathfinder(bot) {
-  if (bot.pathfinder) {
-    bot.pathfinder.setGoal(null);
-  }
-
-  if (typeof bot.clearControlStates === 'function') {
-    bot.clearControlStates();
-  }
-
-  await waitTicks(bot, 1);
 }
 
 async function safeGotoNear(bot, position, range = 1, label = 'goto_near') {
-  const goal = new goals.GoalNear(position.x, position.y, position.z, range);
+  const result = await safeGoto(bot, goalNear(position, range), label);
 
-  try {
-    await bot.pathfinder.goto(goal);
-    return { success: true };
-  } catch (error) {
-    await stopPathfinder(bot);
+  if (result.success) return result;
 
-    const distance = getDistanceTo(bot, position);
+  const distance = getDistanceTo(bot, position);
 
-    if (isWithinDistance(distance, range + 0.75)) {
-      return createPathSuccessWithWarning(error);
-    }
-
-    return createPathFailure(label, error, distance);
+  if (isWithinDistance(distance, range + 0.75)) {
+    return createPathSuccessWithWarning(result.error);
   }
-}
 
-function toBlockTarget(position) {
-  const blockPosition = position.floored();
-
-  return {
-    x: blockPosition.x,
-    y: blockPosition.y,
-    z: blockPosition.z
-  };
+  return { ...result, distance };
 }
 
 async function safeGotoBlock(bot, position, label = 'goto_block') {
-  const target = toBlockTarget(position);
-  const goal = new goals.GoalBlock(target.x, target.y, target.z);
+  const target = toBlockPosition(position);
+  const result = await safeGoto(bot, goalBlock(position), label);
 
-  try {
-    await bot.pathfinder.goto(goal);
-    return { success: true };
-  } catch (error) {
-    await stopPathfinder(bot);
+  if (result.success) return result;
 
-    const distance = getDistanceTo(bot, position);
+  const distance = getDistanceTo(bot, position);
 
-    if (isWithinDistance(distance, 1.2)) {
-      return createPathSuccessWithWarning(error);
-    }
-
-    return createPathFailure(label, error, distance, target);
+  if (isWithinDistance(distance, 1.2)) {
+    return createPathSuccessWithWarning(result.error);
   }
-}
 
-function isDroppedItemEntity(entity) {
-  return entity && entity.name === 'item' && entity.position;
+  return { ...result, distance, target };
 }
 
 function compareDistanceFromBot(bot) {
@@ -134,14 +77,8 @@ function compareDistanceFromBot(bot) {
   };
 }
 
-function isInsideRadius(entity, centerPosition, radius) {
-  return entity.position.distanceTo(centerPosition) <= radius;
-}
-
 function getDroppedItemsInRadius(bot, centerPosition, radius) {
-  return Object.values(bot.entities)
-    .filter(isDroppedItemEntity)
-    .filter(entity => isInsideRadius(entity, centerPosition, radius))
+  return getDroppedItemsNear(bot, centerPosition, radius)
     .sort(compareDistanceFromBot(bot));
 }
 

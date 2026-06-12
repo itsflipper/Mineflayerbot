@@ -1,38 +1,12 @@
 const config = require('../../config');
 const { addBase, getBases, removeBase } = require('../../memory/worldMemory');
+const { isNumeric, toPlainPosition, toBlockArea, formatPosition } = require('../../utils/position');
 
 const pendingCornersByUser = new Map();
 const awaitingNameByUser = new Map();
 
 const BASE_USAGE = 'Usage: !rb start [player|x y z] | end [player|x y z] | cancel | list | remove <name>';
 const POSITION_NOT_FOUND = 'Could not resolve a position. Provide a player name, "x y z", or stand close to the bot.';
-
-function isNumeric(value) {
-  return value !== undefined && value !== '' && !Number.isNaN(Number(value));
-}
-
-function toPlainPosition(position) {
-  return { x: position.x, y: position.y, z: position.z };
-}
-
-function toBlockArea(posA, posB) {
-  return {
-    min: {
-      x: Math.floor(Math.min(posA.x, posB.x)),
-      y: Math.floor(Math.min(posA.y, posB.y)),
-      z: Math.floor(Math.min(posA.z, posB.z))
-    },
-    max: {
-      x: Math.ceil(Math.max(posA.x, posB.x)),
-      y: Math.ceil(Math.max(posA.y, posB.y)),
-      z: Math.ceil(Math.max(posA.z, posB.z))
-    }
-  };
-}
-
-function formatPosition(position) {
-  return `x=${position.x.toFixed(2)}, y=${position.y.toFixed(2)}, z=${position.z.toFixed(2)}`;
-}
 
 function getPlayerPosition(bot, playerName) {
   return bot.players[playerName]?.entity?.position || null;
