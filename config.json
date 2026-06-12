@@ -1,9 +1,0 @@
-{
-  "bot": {
-    "host": "127.0.0.1",
-    "port": 33303,
-    "username": "FiepsBot",
-    "auth": "offline",
-    "version": "1.21.11"
-  }
-}

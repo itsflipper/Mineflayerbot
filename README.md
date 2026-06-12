@@ -1,18 +1,23 @@
 # Mineflayerbot
 
-A simple hardcoded Minecraft bot built with Node.js, Mineflayer and mineflayer-pathfinder.
+A small hardcoded Minecraft bot built with Node.js, Mineflayer and mineflayer-pathfinder.
 
-The bot can join a Minecraft LAN world or server, listen to chat commands, respond to public and private command inputs, and disconnect cleanly.
+The bot can join a LAN world or server, react to chat commands, move with pathfinder, register protected base areas, show its inventory and run a few simple survival tasks. It is not an AI planner, combat bot or full base-management system.
 
 ## Requirements
 
-* Node.js 18 or newer
-* npm
-* Git
-* Minecraft Java Edition
-* Optional for LAN worlds: LAN World Plug-n-Play / mcwifipnp (fabric/forge)
+- Node.js 18 or newer
+- npm
+- Git
+- Minecraft Java Edition
+- Optional for LAN worlds: LAN World Plug-n-Play / mcwifipnp (Fabric/Forge)
 
-Mineflayer requires Node.js 18 or newer.
+Project dependencies:
+
+- mineflayer
+- mineflayer-pathfinder
+- minecraft-data
+- vec3
 
 ## Quick Install
 
@@ -22,7 +27,7 @@ Run this in the folder where you want to download the project:
 git clone https://github.com/itsflipper/Mineflayerbot.git Mineflayerbot && cd Mineflayerbot && npm install
 ```
 
-This downloads the GitHub repository, enters the project folder, and installs the required Node.js dependencies.
+This downloads the repository, enters the project folder and installs the required Node.js dependencies.
 
 ## LAN World Dependency
 
@@ -32,91 +37,117 @@ For local Minecraft LAN worlds, the recommended mod is:
 LAN World Plug-n-Play / mcwifipnp
 ```
 
-This mod is useful for setting a fixed LAN port and adjusting LAN connection options.
-
+This is useful for setting a fixed LAN port and adjusting LAN connection options.
 
 ## Configuration
 
-Before starting the bot, add a new File `config.json` or edit it:
+There are two simple setup options:
 
-```json
-{
-  "bot": {
-    "host": "localhost/IP",
-    "port": 69676,
-    "username": "BotName",
-    "auth": "offline/online",
-    "version": "1.21.11"
-  }
-}
-```
+1. Rename `config.example.json` to `config.json`, then edit `config.json`.
+2. Start the bot once, let it create `config.json`, then edit the created file.
 
-Use this when the bot and Minecraft world run on the same PC:
+Editable config fields:
 
 ```txt
-127.0.0.1   /   localhost
-```
-
-Use Server-IP when the Minecraft world is hosted on a Server:
-
-```txt
-<Server_IP>
-```
-
-Important config fields:
-
-```txt
-host      - localhost / 127.0.0.1 for same-PC hosting, or the host device IP
-port      - must match the Minecraft LAN/server port exactly
-username  - bot name
-auth      - usually "offline" for local LAN testing
-version   - must match the Minecraft version supported by your Mineflayer setup                     (latest support: 1.21.11)
+bot.host      - localhost / 127.0.0.1 for same-PC hosting, or the server IP
+bot.port      - Minecraft LAN/server port
+bot.username  - bot name
+bot.auth      - usually "offline" for local LAN testing, "online" for online auth
+bot.version   - Minecraft version used by Mineflayer
+autoStart     - false by default; true allows startup recovery/basic task behavior
 ```
 
 ## Start Bot
 
 ```bash
-npm start   /   node start.js
+npm start
 ```
 
-## Bot Interaction
+or:
 
-The bot supports three command input styles.
+```bash
+node start.js
+```
 
-### Public Chat Commands
+## Command Input
 
-Use `!` in normal chat:
+Public chat command:
 
 ```txt
-!bye
+!ping
 ```
 
-### Local Private-Style Commands
-
-Use `#` in normal chat:
+Local private-style command:
 
 ```txt
 #ping
 ```
 
-This is useful for local LAN testing when normal `/msg` behavior is not available and behaves differently.
-
-### Private Message Commands
-
-On servers, use Minecraft private messages:
+Server private message:
 
 ```txt
-/msg [@BotName] pos
+/msg <BotName> ping
 ```
 
-## Current Commands
+## Commands
 
 ```txt
-help  - Bot sends cmd list
-ping  - Bot replies with Pong!
-pos   - Bot returns its current position
-bye   - Bot says goodbye and disconnects cleanly
+help / commands / h
+  Lists all available commands.
+
+ping
+  Replies with Pong!
+
+pos / position
+  Shows the bot's current position.
+
+bye / exit / quit / leave
+  Disconnects the bot.
+
+inventory / inv
+  Shows the bot's inventory.
+
+goto / g <player|baseName|x y z>
+  Goes near a player, registered base or coordinate position.
+
+togglefollow / tf
+  Toggles follow mode for the command sender.
+
+registerbase / rb start [player|x y z]
+  Starts base registration at the first corner.
+
+registerbase / rb end [player|x y z]
+  Finishes base registration at the opposite corner and asks for a name.
+
+registerbase / rb cancel
+  Cancels the current base registration.
+
+registerbase / rb list
+  Lists registered protected bases.
+
+registerbase / rb remove <name>
+registerbase / rb delete <name>
+registerbase / rb del <name>
+  Removes a registered protected base.
+
+task / t recoverdeathitems
+  Tries to return to the last death position and collect dropped items.
+
+task / t craftplacecraftingtable
+  Collects wood if needed, crafts planks, crafts a crafting table and places it nearby.
+
+task / t woodentools
+  Creates basic wooden tools while keeping tool materials from one compatible wood package.
 ```
+
+## Current Limits
+
+- No natural-language planning.
+- No LLM or neural-network control yet.
+- No advanced combat behavior.
+- No full mining, farming or storage automation.
+- Base protection only applies to registered base areas known by the bot.
+- The bot only runs the hardcoded commands and tasks listed above.
 
 ## License
 

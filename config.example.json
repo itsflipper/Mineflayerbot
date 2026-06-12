@@ -1,0 +1,10 @@
+{
+  "bot": {
+    "host": "localhost",
+    "port": 33333,
+    "username": "Botname",
+    "auth": "offline",
+    "version": "1.21.11"
+  },
+  "autoStart": false
+}
