@@ -1,6 +1,7 @@
 const { Vec3 } = require('vec3');
 const { goals } = require('mineflayer-pathfinder');
 const { botState } = require('../state/botState');
+const { wait, waitTicks } = require('../utils/timing');
 const { STATUS } = require('./taskRunner');
 
 const RECOVERY_RADIUS = 10;
@@ -22,19 +23,6 @@ const SCOUT_OFFSETS = [
   { x: 0, z: 5 },
   { x: 0, z: -5 }
 ];
-
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function waitTicks(bot, ticks) {
-  if (typeof bot.waitForTicks === 'function') {
-    await bot.waitForTicks(ticks);
-    return;
-  }
-
-  await wait(ticks * 50);
-}
 
 function toVec3(position) {
   return new Vec3(position.x, position.y, position.z);

@@ -3,7 +3,18 @@ const config = require('../config');
 const { canDig } = require('../safety/baseProtector');
 const { collectNearbyLog } = require('../actions/collectWood');
 const { craftItem } = require('../actions/craftItem');
-const { LOG_NAMES, PLANK_NAMES, planksNameForLog, logNameForPlanks } = require('../actions/woodTypes');
+const { wait, waitTicks } = require('../utils/timing');
+const { findItem, hasItem, countItem } = require('../utils/inventory');
+const {
+  LOG_NAMES,
+  PLANK_NAMES,
+  planksNameForLog,
+  logNameForPlanks,
+  countLogs,
+  countPlanksOfType,
+  countLogsOfType,
+  countVirtualPlanksOfType
+} = require('../actions/woodTypes');
 const craftPlaceCraftingTable = require('./craftPlaceCraftingTable');
 const { STATUS } = require('./taskRunner');
 
@@ -11,62 +22,6 @@ const TOOL_TARGETS = ['wooden_pickaxe', 'wooden_axe'];
 const MAX_WOOD_PACKAGE_LOOPS = 12;
 const CRAFTING_TABLE_SEARCH_DISTANCE = 6;
 const PLACED_CRAFTING_TABLE_SEARCH_DISTANCE = 8;
-
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function waitTicks(bot, ticks) {
-  if (typeof bot.waitForTicks === 'function') {
-    await bot.waitForTicks(ticks);
-    return;
-  }
-
-  await wait(ticks * 50);
-}
-
-function countItems(bot, predicate) {
-  return bot.inventory.items()
-    .filter(predicate)
-    .reduce((sum, item) => sum + item.count, 0);
-}
-
-function countItem(bot, itemName) {
-  return countItems(bot, item => item.name === itemName);
-}
-
-function countLogs(bot) {
-  return countItems(bot, item => LOG_NAMES.includes(item.name));
-}
-
-function countPlanks(bot) {
-  return countItems(bot, item => item.name.endsWith('_planks'));
-}
-
-function countPlanksOfType(bot, planksName) {
-  return countItem(bot, planksName);
-}
-
-function countLogsOfType(bot, logName) {
-  return countItem(bot, logName);
-}
-
-function countVirtualPlanksOfType(bot, planksName) {
-  const logName = logNameForPlanks(planksName);
-  return countPlanksOfType(bot, planksName) + countLogsOfType(bot, logName) * 4;
-}
-
-function findItem(bot, itemName) {
-  return bot.inventory.items().find(item => item.name === itemName) || null;
-}
-
-function hasItem(bot, itemName) {
-  return Boolean(findItem(bot, itemName));
-}
-
-function findLogItem(bot) {
-  return bot.inventory.items().find(item => LOG_NAMES.includes(item.name)) || null;
-}
 
 function getAvailableWoodTypes(bot) {
   const inventoryTypes = bot.inventory.items()

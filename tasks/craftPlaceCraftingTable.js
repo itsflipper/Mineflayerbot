@@ -1,7 +1,8 @@
 const { collectNearbyLog } = require('../actions/collectWood');
 const { craftItem } = require('../actions/craftItem');
 const { placeBlockNearby } = require('../actions/placeBlock');
-const { LOG_NAMES, planksNameForLog } = require('../actions/woodTypes');
+const { planksNameForLog, countLogs, countPlanks, findLogItem } = require('../actions/woodTypes');
+const { findItem, hasItem } = require('../utils/inventory');
 const { STATUS } = require('./taskRunner');
 
 const WOOD_COLLECTION_OPTIONS = {
@@ -10,30 +11,8 @@ const WOOD_COLLECTION_OPTIONS = {
   attempts: 3
 };
 
-function countItems(bot, predicate) {
-  return bot.inventory.items()
-    .filter(predicate)
-    .reduce((sum, item) => sum + item.count, 0);
-}
-
-function countLogs(bot) {
-  return countItems(bot, item => LOG_NAMES.includes(item.name));
-}
-
-function countPlanks(bot) {
-  return countItems(bot, item => item.name.endsWith('_planks'));
-}
-
-function findItem(bot, itemName) {
-  return bot.inventory.items().find(item => item.name === itemName) || null;
-}
-
-function findLogItem(bot) {
-  return bot.inventory.items().find(item => LOG_NAMES.includes(item.name)) || null;
-}
-
 function hasCraftingTable(bot) {
-  return Boolean(findItem(bot, 'crafting_table'));
+  return hasItem(bot, 'crafting_table');
 }
 
 function hasEnoughPlanksForTable(bot) {
