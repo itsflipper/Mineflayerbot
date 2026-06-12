@@ -1,10 +1,10 @@
-const { goals } = require('mineflayer-pathfinder');
 const config = require('../config');
 const { canDig } = require('../safety/baseProtector');
 const { collectNearbyLog } = require('../actions/collectWood');
 const { craftItem } = require('../actions/craftItem');
 const { wait, waitTicks } = require('../utils/timing');
 const { findItem, hasItem, countItem } = require('../utils/inventory');
+const { gotoNearPosition, gotoNearBlock, findDroppedItemNear } = require('../actions/navigation');
 const {
   LOG_NAMES,
   PLANK_NAMES,
@@ -123,43 +123,6 @@ function needsCraftingTableReserve(bot) {
   if (hasItem(bot, 'crafting_table')) return false;
   if (findNearbyCraftingTable(bot, CRAFTING_TABLE_SEARCH_DISTANCE)) return false;
   return true;
-}
-
-async function stopPathfinder(bot) {
-  if (bot.pathfinder) bot.pathfinder.setGoal(null);
-
-  if (typeof bot.clearControlStates === 'function') {
-    bot.clearControlStates();
-  }
-
-  await waitTicks(bot, 2);
-}
-
-function createPathFailure(label, error) {
-  return {
-    success: false,
-    reason: 'path_failed',
-    label,
-    error: error.message
-  };
-}
-
-async function safeGoto(bot, goal, label) {
-  try {
-    await bot.pathfinder.goto(goal);
-    return { success: true };
-  } catch (error) {
-    await stopPathfinder(bot);
-    return createPathFailure(label, error);
-  }
-}
-
-function createGoalNearPosition(position, range) {
-  return new goals.GoalNear(position.x, position.y, position.z, range);
-}
-
-async function gotoNearBlock(bot, block, range = 3) {
-  return safeGoto(bot, createGoalNearPosition(block.position, range), `goto_${block.name}`);
 }
 
 async function safeCraft(bot, itemName, amount, craftingTable = null) {
@@ -548,25 +511,12 @@ async function waitForItemCount(bot, itemName, targetCount, timeoutMs = 4000) {
   return countItem(bot, itemName) >= targetCount;
 }
 
-function isDroppedItemEntity(entity) {
-  return entity && entity.name === 'item' && entity.position;
-}
-
-function findDroppedItemNear(bot, position, maxDistance = 6) {
-  return Object.values(bot.entities).find(entity => {
-    if (!isDroppedItemEntity(entity)) return false;
-    return entity.position.distanceTo(position) <= maxDistance;
-  }) || null;
-}
-
 async function collectDroppedItemNear(bot, position, targetCount) {
   const droppedItem = findDroppedItemNear(bot, position, 8);
 
   if (!droppedItem) return false;
 
-  const goal = createGoalNearPosition(droppedItem.position, 1);
-
-  await safeGoto(bot, goal, 'collect_crafting_table_drop');
+  await gotoNearPosition(bot, droppedItem.position, 1, 'collect_crafting_table_drop');
 
   return waitForItemCount(bot, 'crafting_table', targetCount, 3000);
 }

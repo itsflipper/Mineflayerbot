@@ -1,19 +1,11 @@
-const { goals } = require('mineflayer-pathfinder');
 const config = require('../../config');
 const { resolveTargetPosition } = require('./shared/locate');
+const { goalNear, goalFollow, stopPathfinder } = require('../../actions/navigation');
 
 const followingUsers = new Set();
 
 function getGotoPosition(bot, args) {
   return resolveTargetPosition(bot, config.worldId, args);
-}
-
-function createGotoGoal(position) {
-  return new goals.GoalNear(position.x, position.y, position.z, 1);
-}
-
-function createFollowGoal(entity) {
-  return new goals.GoalFollow(entity, 2);
 }
 
 function getPlayerEntity(bot, username) {
@@ -24,13 +16,9 @@ function stopFollowing(username) {
   return followingUsers.delete(username);
 }
 
-function stopPathfinder(bot) {
-  bot.pathfinder.setGoal(null);
-}
-
 function startFollowing(bot, username, entity) {
   followingUsers.add(username);
-  bot.pathfinder.setGoal(createFollowGoal(entity), true);
+  bot.pathfinder.setGoal(goalFollow(entity, 2), true);
 }
 
 function replyGotoUsage(reply) {
@@ -58,12 +46,12 @@ async function runGotoCommand({ bot, username, args, reply }) {
   }
 
   stopFollowing(username);
-  await bot.pathfinder.goto(createGotoGoal(position));
+  await bot.pathfinder.goto(goalNear(position, 1));
 }
 
 async function runToggleFollowCommand({ bot, username, reply }) {
   if (stopFollowing(username)) {
-    stopPathfinder(bot);
+    await stopPathfinder(bot);
     replyFollowDisabled(reply);
     return;
   }

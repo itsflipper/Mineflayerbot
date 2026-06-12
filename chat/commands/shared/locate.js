@@ -1,8 +1,5 @@
 const { findBaseByName } = require('../../../memory/worldMemory');
-
-function isNumeric(value) {
-  return value !== undefined && value !== '' && !Number.isNaN(Number(value));
-}
+const { isNumeric } = require('../../../utils/position');
 
 function getPlayerPosition(bot, playerName) {
   const player = bot.players[playerName];

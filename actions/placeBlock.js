@@ -2,9 +2,11 @@ const { Vec3 } = require('vec3');
 const config = require('../config');
 const { canPlace } = require('../safety/baseProtector');
 const { waitTicks } = require('../utils/timing');
+const { sameBlockPosition } = require('../utils/position');
 
 const FACE_UP = new Vec3(0, 1, 0);
 
+// Wichtig: KEIN { x: 0, z: 0 }, weil das der eigene Fußblock des Bots wäre.
 const FLOOR_OFFSETS = [
   { x: 1, z: 0 },
   { x: -1, z: 0 },
@@ -28,10 +30,6 @@ function isEmptyForPlacement(block) {
   if (!block) return false;
   if (block.name === 'air' || block.name === 'cave_air' || block.name === 'void_air') return true;
   return block.boundingBox === 'empty' && !block.name.includes('water') && !block.name.includes('lava');
-}
-
-function sameBlockPosition(a, b) {
-  return a.x === b.x && a.y === b.y && a.z === b.z;
 }
 
 function isInsideBotBody(bot, targetPosition) {
@@ -95,6 +93,7 @@ async function tryPlaceAtSpot(bot, item, spot) {
   try {
     await bot.placeBlock(spot.referenceBlock, FACE_UP);
   } catch (err) {
+    // Falls Mineflayer auf blockUpdate wartet, aber der Serverzustand trotzdem schon passt.
     await waitTicks(bot, 4);
 
     const afterTimeoutBlock = bot.blockAt(spot.targetPosition);

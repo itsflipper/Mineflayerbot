@@ -1,3 +1,5 @@
+const { formatPosition } = require('../../utils/position');
+
 const commands = {
   bye: {
     description: 'Disconnects the bot.',
@@ -13,8 +15,7 @@ const commands = {
     description: 'Displays the bot\'s current position.',
     aliases: ['position'],
     run: async ({ bot, reply }) => {
-      const pos = bot.entity.position;
-      reply(`x=${pos.x.toFixed(2)}, y=${pos.y.toFixed(2)}, z=${pos.z.toFixed(2)}`);
+      reply(formatPosition(bot.entity.position));
     }
   },
   ping: {
