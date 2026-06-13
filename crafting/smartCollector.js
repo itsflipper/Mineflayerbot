@@ -1,5 +1,7 @@
 const { collectNearbyLog } = require('../actions/collecting/collectWood');
+const { collectNearbyStone } = require('../actions/collecting/collectStone');
 const { LOG_NAMES } = require('../data/items/woodTypes');
+const { COBBLESTONE_NAMES } = require('../data/items/stoneTypes');
 
 const DEFAULT_COLLECT_OPTIONS = {
   maxDistance: 32,
@@ -27,20 +29,37 @@ async function collectLogEntry(bot, entry, options) {
   return { ...result, count: result.logCount };
 }
 
-// Collector-Registry: Materialname -> collect-Funktion. Alle Holzvarianten
-// zeigen auf denselben Collector, der intern über preferredLogName weiß,
-// welche Holzart bevorzugt werden soll.
-function buildLogCollectors() {
+// Gleiches Prinzip wie collectLogEntry, nur für Cobblestone. Ein fehlender
+// Pickaxe (collectResult.reason === 'no_pickaxe') ist hier ein ganz normaler
+// Collect-Fehler aus Sicht des Registries - die Task hat das vorher bereits
+// geprüft (siehe stoneTools.js).
+async function collectStoneEntry(bot, entry, options) {
+  const result = await collectNearbyStone(bot, {
+    minCobblestoneCount: entry.needed,
+    maxDistance: options.maxDistance,
+    attempts: options.attempts
+  });
+
+  return { ...result, count: result.cobblestoneCount };
+}
+
+// Collector-Registry: Materialname -> collect-Funktion. Alle austauschbaren
+// Varianten eines Materials (alle Logsorten, alle Cobblestone-Sorten) zeigen
+// auf denselben Collector.
+function buildCollectorsFor(itemNames, collectorFn) {
   const collectors = {};
 
-  for (const logName of LOG_NAMES) {
-    collectors[logName] = collectLogEntry;
+  for (const itemName of itemNames) {
+    collectors[itemName] = collectorFn;
   }
 
   return collectors;
 }
 
-const COLLECTORS = buildLogCollectors();
+const COLLECTORS = {
+  ...buildCollectorsFor(LOG_NAMES, collectLogEntry),
+  ...buildCollectorsFor(COBBLESTONE_NAMES, collectStoneEntry)
+};
 
 function createCollectedEntry(entry, collectResult) {
   return {

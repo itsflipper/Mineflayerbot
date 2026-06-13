@@ -7,6 +7,12 @@ const TASK_TARGETS = {
   woodentools: [
     { name: 'wooden_pickaxe', count: 1 },
     { name: 'wooden_axe', count: 1 }
+  ],
+  stonetools: [
+    { name: 'stone_sword', count: 1 },
+    { name: 'stone_axe', count: 1 },
+    { name: 'stone_pickaxe', count: 1 },
+    { name: 'stone_shovel', count: 1 }
   ]
 };
 
