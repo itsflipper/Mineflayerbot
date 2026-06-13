@@ -1,7 +1,7 @@
-const { collectNearbyLog } = require('../actions/collectWood');
+const { collectNearbyLog } = require('../actions/collecting/collectWood');
 const { craftItem } = require('../actions/craftItem');
 const { placeBlockNearby } = require('../actions/placeBlock');
-const { planksNameForLog, countLogs, countPlanks, findLogItem } = require('../actions/woodTypes');
+const { planksNameForLog, countLogs, countPlanks, findLogItem } = require('../data/items/woodTypes');
 const { findItem, hasItem } = require('../utils/inventory');
 const { STATUS } = require('./taskRunner');
 

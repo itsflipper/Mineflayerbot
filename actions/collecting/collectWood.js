@@ -1,8 +1,8 @@
-const config = require('../config');
-const { canDig } = require('../safety/baseProtector');
-const { wait, waitTicks } = require('../utils/timing');
-const { gotoNearPosition, getDroppedItemsNear } = require('./navigation');
-const { LOG_NAMES, countLogs } = require('./woodTypes');
+const config = require('../../config');
+const { canDig } = require('../../safety/baseProtector');
+const { wait, waitTicks } = require('../../utils/timing');
+const { gotoNearPosition, getDroppedItemsNear } = require('../navigation');
+const { LOG_NAMES, countLogs } = require('../../data/items/woodTypes');
 
 function getDroppedItemName(entity) {
   const item = entity.getDroppedItem?.();
