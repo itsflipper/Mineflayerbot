@@ -13,7 +13,9 @@ const TARGETS = [
 async function ensureWoodenPickaxe(bot) {
   if (hasItem(bot, 'wooden_pickaxe')) return { success: true };
 
-  return woodenTools.run(bot) === STATUS.SUCCESS
+  const status = await woodenTools.run(bot);
+
+  return status === STATUS.SUCCESS
     ? { success: true }
     : { success: false };
 }
