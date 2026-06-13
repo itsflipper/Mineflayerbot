@@ -2,10 +2,10 @@ const config = require('../../config');
 const { canDig } = require('../../safety/baseProtector');
 const { wait, waitTicks } = require('../../utils/timing');
 const { gotoNearPosition, getDroppedItemsNear } = require('../navigation');
-const { digStaircaseDown, climbStaircaseUp, digBoxInFront } = require('../digging');
+const { digBlockAt, digStaircaseDown, climbStaircaseUp, digBoxInFront } = require('../digging');
 const { STONE_NAMES, COBBLESTONE_NAMES, countCobblestone } = require('../../data/items/stoneTypes');
 
-const STAIRCASE_MAX_DEPTH = 7;
+const STAIRCASE_MAX_DEPTH = 10;
 const SEA_LEVEL_Y = 63;
 
 function getDroppedItemName(entity) {
@@ -129,22 +129,36 @@ async function gotoNearBlock(bot, block, minCobblestoneCount) {
 // ---------------------------------------------------------------------
 //
 // Treppe + Kasten laufen IMMER, sobald der Bot nicht bereits weit genug
-// unter dem Meeresspiegel steht (digStaircaseDown). Unten angekommen wird
-// zusätzlich ein 3x3x3 Kasten vor ihm freigegraben (digBoxInFront), damit
-// genug Stone/Deepslate für mehrere Abbauversuche erreichbar ist.
+// unter dem Meeresspiegel steht (digStaircaseDown). Die Treppe gräbt
+// 2 zusätzliche Stufen, nachdem sie zum ersten Mal auf Stone trifft
+// (extraStepsAfterStone in digStaircaseDown), damit unten genug Platz/
+// Stein für den Kasten ist. Danach wird zusätzlich ein 3x3x3 Kasten vor
+// ihm freigegraben (digBoxInFront), damit genug Stone/Deepslate für
+// mehrere Abbauversuche erreichbar ist.
+//
+// digBoxInFront läuft intern zum Zentrum des Kastens (collectDropsInBox),
+// wodurch der Bot die Treppenlinie verlässt. Damit climbStaircaseUp danach
+// wieder an der richtigen Stelle ansetzen kann, läuft der Bot nach dem
+// Kasten-Graben zurück zur untersten Treppenstufe.
 
 function isFarBelowSeaLevel(bot) {
   const currentY = bot.entity.position.y;
   return currentY <= SEA_LEVEL_Y - STAIRCASE_MAX_DEPTH;
 }
 
+function isBackAtSurface(bot, startPosition) {
+  return bot.entity.position.y >= startPosition.y;
+}
+
 async function descendToStone(bot) {
+  const startPosition = bot.entity.position.clone();
+
   if (isFarBelowSeaLevel(bot)) {
-    return { descended: false, reason: 'already_below_threshold' };
+    return { descended: false, reason: 'already_below_threshold', startPosition };
   }
 
   if (!hasEquippablePickaxe(bot)) {
-    return { descended: false, reason: 'no_pickaxe' };
+    return { descended: false, reason: 'no_pickaxe', startPosition };
   }
 
   await ensurePickaxeEquipped(bot);
@@ -152,16 +166,45 @@ async function descendToStone(bot) {
   const staircaseResult = await digStaircaseDown(bot, STONE_NAMES, STAIRCASE_MAX_DEPTH);
   const boxResult = await digBoxInFront(bot);
 
-  return { descended: true, staircaseResult, boxResult };
+  const staircasePath = staircaseResult.path || [];
+  if (staircasePath.length > 0) {
+    const lastStep = staircasePath[staircasePath.length - 1];
+    await gotoNearPosition(bot, lastStep, 0, 'goto_staircase_bottom');
+  }
+
+  return { descended: true, staircaseResult, boxResult, startPosition };
 }
+async function climbBackUp(bot, staircasePath, startPosition) {
+  if (staircasePath.length === 0) {
+    return { climbed: 0, atSurface: true };
+  }
 
-// Läuft, falls eine Treppe gegraben wurde, am Ende wieder hoch zur
-// Ausgangsposition - sonst müsste der Bot sich später (z.B. für den
-// Crafting Table) mit einem Dirt-Turm nach oben graben.
-async function climbBackUp(bot, staircasePath) {
-  if (staircasePath.length === 0) return { climbed: 0 };
+  if (bot.pathfinder) bot.pathfinder.setGoal(null);
 
-  return climbStaircaseUp(bot, staircasePath);
+  const climbResult = await climbStaircaseUp(bot, staircasePath);
+
+  if (isBackAtSurface(bot, startPosition)) {
+    return { ...climbResult, atSurface: true };
+  }
+
+  // Treppe war unvollständig oder hat nicht gereicht - direkt nach oben graben
+  // und gleichzeitig vorwärts/springen, damit der Bot sicher nicht mehr im
+  // Loch steht, bevor die Task weiterläuft.
+  while (!isBackAtSurface(bot, startPosition)) {
+    const above = bot.entity.position.floored().offset(0, 2, 0);
+    const digResult = await digBlockAt(bot, above);
+
+    if (!digResult.success) break;
+
+    bot.setControlState('forward', true);
+    bot.setControlState('jump', true);
+    await waitTicks(bot, 5);
+    bot.setControlState('forward', false);
+    bot.setControlState('jump', false);
+    await waitTicks(bot, 1);
+  }
+
+  return { ...climbResult, atSurface: isBackAtSurface(bot, startPosition) };
 }
 
 // ---------------------------------------------------------------------
@@ -274,27 +317,23 @@ async function collectNearbyStone(bot, options = {}) {
     return {
       success: true,
       alreadyHadCobblestone: true,
-      cobblestoneCount: countCobblestone(bot)
+      cobblestoneCount: countCobblestone(bot),
+      atSurface: true
     };
   }
 
-  // Task-Voraussetzung, kein Collect-Fehler im engeren Sinn: ohne Pickaxe
-  // droppt Stone kein Cobblestone. Die Task entscheidet, was in diesem
-  // Fall zu tun ist (siehe stoneTools.js).
   if (!hasEquippablePickaxe(bot)) {
     return {
       success: false,
       reason: 'no_pickaxe',
-      cobblestoneCount: countCobblestone(bot)
+      cobblestoneCount: countCobblestone(bot),
+      atSurface: true
     };
   }
 
-  // Treppe + Kasten laufen IMMER (außer der Bot ist schon tief genug) -
-  // ein "ist überhaupt Stein in 32 Blöcken sichtbar"-Check würde fast immer
-  // true sein (Stein liegt fast überall darunter) und damit das Graben nie
-  // auslösen, obwohl der Bot an der Oberfläche steht.
   const descendResult = await descendToStone(bot);
   const staircasePath = descendResult.staircaseResult?.path || [];
+  const startPosition = descendResult.startPosition;
 
   const errors = [];
 
@@ -302,18 +341,19 @@ async function collectNearbyStone(bot, options = {}) {
     const outcome = await tryCollectOneStone(bot, minCobblestoneCount, maxDistance, errors);
 
     if (outcome.done) {
-      await climbBackUp(bot, staircasePath);
-      return { ...outcome.result, cobblestoneCount: countCobblestone(bot), errors };
+      const climbResult = await climbBackUp(bot, staircasePath, startPosition);
+      return { ...outcome.result, cobblestoneCount: countCobblestone(bot), errors, atSurface: climbResult.atSurface };
     }
   }
 
-  await climbBackUp(bot, staircasePath);
+  const climbResult = await climbBackUp(bot, staircasePath, startPosition);
 
   return {
     success: false,
     reason: 'collect_failed',
     cobblestoneCount: countCobblestone(bot),
-    errors
+    errors,
+    atSurface: climbResult.atSurface
   };
 }
 
