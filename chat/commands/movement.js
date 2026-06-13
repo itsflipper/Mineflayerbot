@@ -1,6 +1,7 @@
 const config = require('../../config');
 const { resolveTargetPosition } = require('./shared/locate');
 const { goalNear, goalFollow, stopPathfinder } = require('../../actions/navigation');
+const { REPLIES } = require('../replies');
 
 const followingUsers = new Set();
 
@@ -21,27 +22,11 @@ function startFollowing(bot, username, entity) {
   bot.pathfinder.setGoal(goalFollow(entity, 2), true);
 }
 
-function replyGotoUsage(reply) {
-  reply('Usage: !goto <player> | <baseName> | <x> <y> <z>');
-}
-
-function replyPlayerNotFound(reply) {
-  reply('I could not find you. Move closer to the bot.');
-}
-
-function replyFollowEnabled(reply) {
-  reply('Follow mode enabled.');
-}
-
-function replyFollowDisabled(reply) {
-  reply('Follow mode disabled.');
-}
-
 async function runGotoCommand({ bot, username, args, reply }) {
   const position = getGotoPosition(bot, args);
 
   if (!position) {
-    replyGotoUsage(reply);
+    reply(REPLIES.gotoUsage);
     return;
   }
 
@@ -52,19 +37,19 @@ async function runGotoCommand({ bot, username, args, reply }) {
 async function runToggleFollowCommand({ bot, username, reply }) {
   if (stopFollowing(username)) {
     await stopPathfinder(bot);
-    replyFollowDisabled(reply);
+    reply(REPLIES.followDisabled);
     return;
   }
 
   const entity = getPlayerEntity(bot, username);
 
   if (!entity) {
-    replyPlayerNotFound(reply);
+    reply(REPLIES.playerNotFound);
     return;
   }
 
   startFollowing(bot, username, entity);
-  replyFollowEnabled(reply);
+  reply(REPLIES.followEnabled);
 }
 
 const commands = {

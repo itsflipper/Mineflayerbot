@@ -1,4 +1,5 @@
 const { getItems } = require('../../utils/inventory');
+const { REPLIES } = require('../replies');
 
 function hasNoItems(items) {
   return items.length === 0;
@@ -16,7 +17,7 @@ function summarizeInventory(bot) {
   const items = getItems(bot);
 
   if (hasNoItems(items)) {
-    return 'Inventory is empty.';
+    return REPLIES.inventoryEmpty;
   }
 
   return formatInventoryItems(items);

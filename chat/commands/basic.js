@@ -1,11 +1,12 @@
 const { formatPosition } = require('../../utils/position');
+const { REPLIES } = require('../replies');
 
 const commands = {
   bye: {
     description: 'Disconnects the bot.',
     aliases: ['exit', 'quit', 'leave'],
     run: async ({ bot, reply }) => {
-      reply('Bye!');
+      reply(REPLIES.bye);
       setTimeout(() => {
         bot.quit('Bot has disconnected.');
       }, 300);
@@ -22,7 +23,7 @@ const commands = {
     description: 'Replies with Pong!',
     aliases: [],
     run: async ({ reply }) => {
-      reply('Pong!');
+      reply(REPLIES.pong);
     }
   },
 };

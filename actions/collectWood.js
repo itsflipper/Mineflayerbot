@@ -1,8 +1,26 @@
 const config = require('../config');
 const { canDig } = require('../safety/baseProtector');
 const { wait, waitTicks } = require('../utils/timing');
-const { gotoNearPosition, findDroppedItemNear } = require('./navigation');
+const { gotoNearPosition, getDroppedItemsNear } = require('./navigation');
 const { LOG_NAMES, countLogs } = require('./woodTypes');
+
+function getDroppedItemName(entity) {
+  const item = entity.getDroppedItem?.();
+  if (item) return item.name;
+
+  const metaItem = entity.metadata?.[8];
+  if (metaItem?.itemId != null) return metaItem.itemId;
+
+  return null;
+}
+
+function isDroppedLog(entity) {
+  return LOG_NAMES.includes(getDroppedItemName(entity));
+}
+
+function findDroppedLogNear(bot, position, maxDistance) {
+  return getDroppedItemsNear(bot, position, maxDistance).find(isDroppedLog) || null;
+}
 
 function hasTargetLogCount(bot, minLogCount) {
   return countLogs(bot) >= minLogCount;
@@ -19,9 +37,9 @@ async function waitForLogCount(bot, minLogCount, timeoutMs = 2000) {
   return hasTargetLogCount(bot, minLogCount);
 }
 
-function findNearestDiggableLog(bot, maxDistance = 32) {
+function findNearestDiggableLog(bot, maxDistance = 32, logNames = LOG_NAMES) {
   const candidates = bot.findBlocks({
-    matching: (block) => LOG_NAMES.includes(block.name),
+    matching: (block) => logNames.includes(block.name),
     maxDistance,
     count: 30
   });
@@ -32,7 +50,7 @@ function findNearestDiggableLog(bot, maxDistance = 32) {
 
   for (const position of candidates) {
     const block = bot.blockAt(position);
-    if (!block || !LOG_NAMES.includes(block.name)) continue;
+    if (!block || !logNames.includes(block.name)) continue;
 
     if (canDig(config.worldId, position)) {
       return { block, reason: null };
@@ -43,7 +61,7 @@ function findNearestDiggableLog(bot, maxDistance = 32) {
 }
 
 async function collectDroppedItemNearby(bot, minLogCount) {
-  const droppedItem = findDroppedItemNear(bot, bot.entity.position, 8);
+  const droppedItem = findDroppedLogNear(bot, bot.entity.position, 8);
   if (!droppedItem) return false;
 
   const gotoResult = await gotoNearPosition(bot, droppedItem.position, 1, 'goto_dropped_log');
@@ -139,10 +157,22 @@ async function digLog(bot, logBlock, minLogCount) {
   return { success: false, reason: 'log_not_collected' };
 }
 
+function resolveLogBlock(bot, maxDistance, preferredLogName) {
+  if (preferredLogName) {
+    const preferredResult = findNearestDiggableLog(bot, maxDistance, [preferredLogName]);
+    if (preferredResult.block) return preferredResult;
+
+    if (preferredResult.reason === 'all_logs_protected') return preferredResult;
+  }
+
+  return findNearestDiggableLog(bot, maxDistance, LOG_NAMES);
+}
+
 async function collectNearbyLog(bot, options = {}) {
   const minLogCount = Math.max(1, Number(options.minLogCount || 1));
   const maxDistance = Math.max(4, Number(options.maxDistance || 32));
   const attempts = Math.max(1, Number(options.attempts || 3));
+  const preferredLogName = options.preferredLogName || null;
 
   if (hasTargetLogCount(bot, minLogCount)) {
     return {
@@ -155,7 +185,7 @@ async function collectNearbyLog(bot, options = {}) {
   const errors = [];
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    const { block: logBlock, reason } = findNearestDiggableLog(bot, maxDistance);
+    const { block: logBlock, reason } = resolveLogBlock(bot, maxDistance, preferredLogName);
 
     if (!logBlock) {
       return {
