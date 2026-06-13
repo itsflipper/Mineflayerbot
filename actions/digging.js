@@ -84,11 +84,15 @@ function getStaircaseStepPositions(bot, includeHeadClearance = true) {
 }
 
 async function moveOntoStep(bot, stepFeet) {
-  await bot.lookAt(stepFeet.offset(0.5, 0.5, 0.5), true);
+  // Horizontal schauen (Pitch ~0), damit 'forward' wirklich horizontal läuft,
+  // nicht schräg nach unten ins Loch.
+  const target = stepFeet.offset(0.5, 1, 0.5); // auf Augenhöhe des Zielfelds schauen
+  await bot.lookAt(target, true);
+
   bot.setControlState('forward', true);
-  await waitTicks(bot, 4);
+  await waitTicks(bot, 6);
   bot.setControlState('forward', false);
-  await waitTicks(bot, 1);
+  await waitTicks(bot, 2);
 }
 
 function isStoneBlock(block, stoneNames) {
@@ -116,17 +120,20 @@ async function digStaircaseStep(bot, stoneNames, isLastStep) {
 }
 
 // Gräbt schrittweise eine Treppe nach unten (max. maxDepth Stufen), bis
-// Stein/Deepslate unter dem Bot erreicht ist oder die maximale Tiefe
-// erreicht wurde. Bricht ab, falls ein Schritt blockiert ist.
+// Stein/Deepslate unter dem Bot erreicht ist (plus extraStepsAfterStone
+// weitere Stufen, damit unten genug Platz für den 3x3x3-Kasten ist) oder
+// die maximale Tiefe erreicht wurde. Bricht ab, falls ein Schritt blockiert ist.
 //
 // 'path' enthält die stepFeet-Positionen jeder erfolgreich gegrabenen Stufe
 // in absteigender Reihenfolge - wird für climbStaircaseUp benötigt, um den
 // Weg rückwärts wieder hochzulaufen.
-async function digStaircaseDown(bot, stoneNames, maxDepth) {
+async function digStaircaseDown(bot, stoneNames, maxDepth, extraStepsAfterStone = 2) {
+  if (bot.pathfinder) bot.pathfinder.setGoal(null);
   const path = [];
+  let extraRemaining = null; // null = noch kein Stone erreicht
 
   for (let step = 1; step <= maxDepth; step++) {
-    const isLastStep = step === maxDepth;
+    const isLastStep = step === maxDepth || extraRemaining === 0;
     const stepResult = await digStaircaseStep(bot, stoneNames, isLastStep);
 
     if (stepResult.blocked) {
@@ -135,24 +142,27 @@ async function digStaircaseDown(bot, stoneNames, maxDepth) {
 
     path.push(stepResult.stepFeet);
 
-    if (stepResult.reachedStone) {
-      return { dug: true, reason: 'reached_stone', steps: step, path };
+    if (stepResult.reachedStone && extraRemaining === null) {
+      extraRemaining = extraStepsAfterStone;
+    }
+
+    if (extraRemaining !== null) {
+      if (extraRemaining === 0) {
+        return { dug: true, reason: 'reached_stone', steps: step, path };
+      }
+      extraRemaining--;
     }
   }
 
   return { dug: true, reason: 'max_depth_reached', steps: maxDepth, path };
 }
-
-// ---------------------------------------------------------------------
-// Treppe wieder hoch
-// ---------------------------------------------------------------------
-//
-// Läuft die beim Abstieg gesammelten stepFeet-Positionen in umgekehrter
-// Reihenfolge ab. Die Stufen sind bereits frei gegraben (digStaircaseDown
-// hat dort Boden + Körperhöhe entfernt), daher reicht ein einfaches
-// Hinlaufen pro Stufe - kein erneutes Graben nötig.
 async function climbStaircaseUp(bot, path) {
-  for (let i = path.length - 1; i >= 0; i--) {
+  if (bot.pathfinder) bot.pathfinder.setGoal(null);
+
+  // Der unterste Eintrag (path[length-1]) entspricht der aktuellen Position
+  // des Bots (goto_staircase_bottom hat ihn dorthin gestellt) - überspringen,
+  // sonst schaut/springt der Bot auf der Stelle ohne sich zu bewegen.
+  for (let i = path.length - 2; i >= 0; i--) {
     const stepFeet = path[i];
 
     await bot.lookAt(stepFeet.offset(0.5, 1, 0.5), true);
@@ -164,7 +174,7 @@ async function climbStaircaseUp(bot, path) {
     await waitTicks(bot, 1);
   }
 
-  return { climbed: path.length };
+  return { climbed: Math.max(0, path.length - 1) };
 }
 
 // ---------------------------------------------------------------------
