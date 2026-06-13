@@ -75,12 +75,32 @@ function createPlacedTableNotFoundFailure() {
   };
 }
 
+const PLACEMENT_RETRY_OFFSETS = [
+  { x: 3, z: 0 },
+  { x: -3, z: 0 },
+  { x: 0, z: 3 },
+  { x: 0, z: -3 }
+];
+
+async function repositionForPlacement(bot, offset) {
+  const target = bot.entity.position.floored().offset(offset.x, 0, offset.z);
+  await gotoNearPosition(bot, target, 1, 'reposition_for_table_placement');
+}
+
 async function placeCraftingTableFromInventory(bot, source) {
   const tableItem = findItem(bot, 'crafting_table');
 
   if (!tableItem) return createNoCraftingTableItemFailure();
 
-  const placeResult = await placeBlockNearby(bot, tableItem);
+  let placeResult = await placeBlockNearby(bot, tableItem);
+
+  if (!placeResult.success) {
+    for (const offset of PLACEMENT_RETRY_OFFSETS) {
+      await repositionForPlacement(bot, offset);
+      placeResult = await placeBlockNearby(bot, tableItem);
+      if (placeResult.success) break;
+    }
+  }
 
   if (!placeResult.success) return createPlaceFailedResult(placeResult);
 
