@@ -3,6 +3,8 @@ const { commands: baseRegistrationCommands, hasPendingNameRequest, resolvePendin
 const { commands: taskCommands } = require('./tasks');
 const { commands: movementCommands } = require('./movement');
 const { commands: inventoryCommands } = require('./inventory');
+const { commands: craftingCommands } = require('./crafting');
+const { REPLIES } = require('../replies');
 
 function formatCommandEntry(name, commandEntry) {
   if (commandEntry.aliases.length === 0) return name;
@@ -20,7 +22,7 @@ function formatHelpText() {
 }
 
 async function runHelpCommand({ reply }) {
-  reply(`Available commands: ${formatHelpText()}`);
+  reply(REPLIES.availableCommands(formatHelpText()));
 }
 
 const commands = {
@@ -29,6 +31,7 @@ const commands = {
   ...taskCommands,
   ...movementCommands,
   ...inventoryCommands,
+  ...craftingCommands,
   help: {
     description: 'Lists all available commands.',
     aliases: ['commands', 'h'],
@@ -106,14 +109,6 @@ function shouldResolvePendingName(username, text) {
   return !looksLikeCommand(text);
 }
 
-function replyUnknownCommand(reply, commandName) {
-  reply(`Unknown command: ${commandName}`);
-}
-
-function replyCommandError(reply, error) {
-  reply(`Error occurred while executing the command: ${error.message}`);
-}
-
 async function runCommand(commandEntry, context) {
   await commandEntry.run(context);
 }
@@ -128,7 +123,7 @@ async function handleParsedCommand(bot, username, source, parsed) {
   const realCommandName = resolveCommandName(parsed.commandName);
 
   if (!realCommandName) {
-    replyUnknownCommand(reply, parsed.commandName);
+    reply(REPLIES.unknownCommand(parsed.commandName));
     return;
   }
 
@@ -138,7 +133,7 @@ async function handleParsedCommand(bot, username, source, parsed) {
     await runCommand(commandEntry, { bot, username, args: parsed.args, source, reply });
   } catch (err) {
     console.error('[Command Error]', err);
-    replyCommandError(reply, err);
+    reply(REPLIES.commandError(err.message));
   }
 }
 

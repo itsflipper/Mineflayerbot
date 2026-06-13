@@ -2,6 +2,7 @@ const taskRunner = require('../../tasks/taskRunner');
 const recoverDeathItems = require('../../tasks/recoverDeathItems');
 const craftPlaceCraftingTable = require('../../tasks/craftPlaceCraftingTable');
 const woodenTools = require('../../tasks/woodenTools');
+const { REPLIES } = require('../replies');
 
 const TASKS = {
   recoverdeathitems: recoverDeathItems,
@@ -22,14 +23,6 @@ function getAvailableTasksText() {
   return Object.keys(TASKS).join(', ');
 }
 
-function replyUnknownTask(reply) {
-  reply(`Unknown task. Available: ${getAvailableTasksText()}`);
-}
-
-function replyTaskFailure(reply, taskName) {
-  reply(`Task "${taskName}" failed.`);
-}
-
 function isFailure(status) {
   return status === taskRunner.STATUS.FAILURE;
 }
@@ -44,14 +37,14 @@ async function runTaskCommand({ bot, args, reply }) {
   const task = getTask(taskName);
 
   if (!task) {
-    replyUnknownTask(reply);
+    reply(REPLIES.unknownTask(getAvailableTasksText()));
     return;
   }
 
   const status = await runTask(bot, task);
 
   if (isFailure(status)) {
-    replyTaskFailure(reply, taskName);
+    reply(REPLIES.taskFailed(taskName));
   }
 }
 
