@@ -1,4 +1,4 @@
-const { countByNames, countItem, findFirstByNames } = require('../utils/inventory');
+const { countByNames, countItem, findFirstByNames } = require('../../utils/inventory');
 
 const LOG_NAMES = [
   'oak_log', 'birch_log', 'spruce_log',
