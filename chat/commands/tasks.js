@@ -2,12 +2,14 @@ const taskRunner = require('../../tasks/taskRunner');
 const recoverDeathItems = require('../../tasks/recoverDeathItems');
 const craftPlaceCraftingTable = require('../../tasks/craftPlaceCraftingTable');
 const woodenTools = require('../../tasks/woodenTools');
+const stoneTools = require('../../tasks/stoneTools');
 const { REPLIES } = require('../replies');
 
 const TASKS = {
   recoverdeathitems: recoverDeathItems,
   craftplacecraftingtable: craftPlaceCraftingTable,
-  woodentools: woodenTools
+  woodentools: woodenTools,
+  stonetools: stoneTools
 };
 
 function getTaskName(args) {

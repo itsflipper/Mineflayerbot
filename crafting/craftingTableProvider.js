@@ -107,10 +107,20 @@ async function placeCraftingTableFromInventory(bot, source) {
 // Falls auch im Inventar keiner vorhanden ist, schlägt dieser Aufruf fehl -
 // in dem Fall muss vorher 'crafting_table' als zusätzliches Craft-Ziel im
 // Plan eingeplant und gecraftet worden sein (siehe smartCraft.js).
+//
+// Ist ein gefundener Tisch nicht erreichbar (z.B. von einem früheren Lauf
+// übrig geblieben und mittlerweile verschüttet/unzugänglich), wird das
+// NICHT als Gesamtfehler gewertet - stattdessen wird, falls im Inventar
+// vorhanden, ein neuer Tisch platziert.
 async function ensureCraftingTableBlock(bot) {
   const existingTable = findNearbyCraftingTable(bot, CRAFTING_TABLE_SEARCH_DISTANCE);
 
-  if (existingTable) return useExistingCraftingTable(bot, existingTable);
+  if (existingTable) {
+    const existingResult = await useExistingCraftingTable(bot, existingTable);
+
+    if (existingResult.success) return existingResult;
+    if (!hasItem(bot, 'crafting_table')) return existingResult;
+  }
 
   if (!hasItem(bot, 'crafting_table')) {
     return createNoCraftingTableItemFailure();
