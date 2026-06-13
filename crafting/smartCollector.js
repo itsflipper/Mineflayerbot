@@ -35,7 +35,11 @@ function createUnsupportedEntry(entry) {
 }
 
 async function collectLogEntry(bot, entry, preferredLogName, collectOptions) {
-  const targetLogCount = countLogs(bot) + entry.missing;
+  // entry.needed ist der GESAMTbedarf laut Plan (available_at_plan_time + missing).
+  // Hier NICHT countLogs(bot) + entry.missing verwenden - das würde den zum
+  // Plan-Zeitpunkt bereits vorhandenen Bestand nochmal draufaddieren, falls
+  // sich der Log-Bestand zwischen Planung und Sammeln geändert hat.
+  const targetLogCount = entry.needed;
 
   return collectNearbyLog(bot, {
     minLogCount: targetLogCount,

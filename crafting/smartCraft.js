@@ -10,37 +10,13 @@ const {
 } = require('./craftingTableProvider');
 const { craftItem } = require('../actions/craftItem');
 const { hasItem } = require('../utils/inventory');
-const { isPlanksName, isLogName } = require('../actions/woodTypes');
-
-// Gleiche Reihenfolge wie CRAFT_ORDER in checkRecipes.js. Wird hier umgekehrt
-// durchlaufen, weil ein Item nur Items craften darf, die WEITER UNTEN in
-// CRAFT_ORDER stehen - also müssen diese zuerst fertig sein.
-const CRAFT_ORDER = ['wooden_pickaxe', 'wooden_axe', 'crafting_table', 'stick', 'planks', 'log'];
 
 const CRAFTING_TABLE_TARGET = { name: 'crafting_table', count: 1 };
 
-// Bildet einen konkreten Itemnamen (z.B. 'oak_planks') auf seinen Slot in
-// CRAFT_ORDER ab ('planks'). checkRecipes.js löst Slots umgekehrt auf
-// (resolveSlotName); hier brauchen wir die Gegenrichtung für die Sortierung.
-function getCraftOrderSlot(itemName) {
-  if (isPlanksName(itemName)) return 'planks';
-  if (isLogName(itemName)) return 'log';
-
-  return itemName;
-}
-
-function getCraftOrderIndex(itemName) {
-  const index = CRAFT_ORDER.indexOf(getCraftOrderSlot(itemName));
-  return index === -1 ? CRAFT_ORDER.length : index;
-}
-
-// Craft-Reihenfolge = umgekehrte CRAFT_ORDER (Abhängigkeiten zuerst).
-function sortCraftsByDependencyOrder(crafts) {
-  return [...crafts].sort((a, b) => getCraftOrderIndex(b.name) - getCraftOrderIndex(a.name));
-}
-
+// checkRecipePlan liefert intermediateCrafts/finalCrafts bereits in
+// topologischer Reihenfolge (Abhängigkeiten zuerst) - hier nur konkatenieren.
 function getAllCrafts(plan) {
-  return sortCraftsByDependencyOrder([...plan.intermediateCrafts, ...plan.finalCrafts]);
+  return plan.orderedCrafts;
 }
 
 function planNeedsCraftingTable(plan) {

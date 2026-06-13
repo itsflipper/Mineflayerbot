@@ -1,8 +1,26 @@
 const config = require('../config');
 const { canDig } = require('../safety/baseProtector');
 const { wait, waitTicks } = require('../utils/timing');
-const { gotoNearPosition, findDroppedItemNear } = require('./navigation');
+const { gotoNearPosition, getDroppedItemsNear } = require('./navigation');
 const { LOG_NAMES, countLogs } = require('./woodTypes');
+
+function getDroppedItemName(entity) {
+  const item = entity.getDroppedItem?.();
+  if (item) return item.name;
+
+  const metaItem = entity.metadata?.[8];
+  if (metaItem?.itemId != null) return metaItem.itemId;
+
+  return null;
+}
+
+function isDroppedLog(entity) {
+  return LOG_NAMES.includes(getDroppedItemName(entity));
+}
+
+function findDroppedLogNear(bot, position, maxDistance) {
+  return getDroppedItemsNear(bot, position, maxDistance).find(isDroppedLog) || null;
+}
 
 function hasTargetLogCount(bot, minLogCount) {
   return countLogs(bot) >= minLogCount;
@@ -43,7 +61,7 @@ function findNearestDiggableLog(bot, maxDistance = 32, logNames = LOG_NAMES) {
 }
 
 async function collectDroppedItemNearby(bot, minLogCount) {
-  const droppedItem = findDroppedItemNear(bot, bot.entity.position, 8);
+  const droppedItem = findDroppedLogNear(bot, bot.entity.position, 8);
   if (!droppedItem) return false;
 
   const gotoResult = await gotoNearPosition(bot, droppedItem.position, 1, 'goto_dropped_log');
