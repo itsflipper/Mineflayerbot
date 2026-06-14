@@ -1,15 +1,18 @@
 const { goals } = require('mineflayer-pathfinder');
 const { waitTicks } = require('../utils/timing');
 const { toBlockPosition } = require('../utils/position');
-const { installPathing, pathfinderGoto, pathfinderSetGoal, pathfinderStop } = require('../utils/pathing/index');
+const {
+  installPathing,
+  setMovementProfile,
+  pathfinderGoto,
+  pathfinderSetGoal,
+  pathfinderStop
+} = require('../utils/pathing/index');
+const config = require('../config');
 
 async function stopPathfinder(bot, ticks = 2) {
   pathfinderStop(bot);
-
-  if (typeof bot.clearControlStates === 'function') {
-    bot.clearControlStates();
-  }
-
+  if (typeof bot.clearControlStates === 'function') bot.clearControlStates();
   await waitTicks(bot, ticks);
 }
 
@@ -27,17 +30,12 @@ function goalFollow(entity, range) {
 }
 
 function createPathFailure(label, error) {
-  return {
-    success: false,
-    reason: 'path_failed',
-    label,
-    error: error.message
-  };
+  return { success: false, reason: 'path_failed', label, error: error.message };
 }
 
 async function safeGoto(bot, goal, label) {
   try {
-    await pathfinderGoto(bot, goal);
+    await pathfinderGoto(bot, goal, config.worldId);
     return { success: true };
   } catch (error) {
     await stopPathfinder(bot);
@@ -68,11 +66,12 @@ function findDroppedItemNear(bot, position, maxDistance) {
 }
 
 function followEntity(bot, entity, range) {
-  pathfinderSetGoal(bot, goalFollow(entity, range), true);
+  pathfinderSetGoal(bot, goalFollow(entity, range), true, config.worldId);
 }
 
 module.exports = {
   installPathing,
+  setMovementProfile,
   stopPathfinder,
   goalNear,
   goalBlock,
