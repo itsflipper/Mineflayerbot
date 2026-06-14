@@ -1,10 +1,11 @@
 const { goals } = require('mineflayer-pathfinder');
 const { waitTicks } = require('../utils/timing');
 const { toBlockPosition } = require('../utils/position');
+const { installPathing, pathfinderGoto, pathfinderSetGoal, pathfinderStop } = require('../utils/pathing/index');
 
 async function stopPathfinder(bot, ticks = 2) {
   if (bot.pathfinder) {
-    bot.pathfinder.setGoal(null);
+    pathfinderStop(bot);
   }
 
   if (typeof bot.clearControlStates === 'function') {
@@ -38,7 +39,7 @@ function createPathFailure(label, error) {
 
 async function safeGoto(bot, goal, label) {
   try {
-    await bot.pathfinder.goto(goal);
+    await pathfinderGoto(bot, goal);
     return { success: true };
   } catch (error) {
     await stopPathfinder(bot);
@@ -68,7 +69,12 @@ function findDroppedItemNear(bot, position, maxDistance) {
   return getDroppedItemsNear(bot, position, maxDistance)[0] || null;
 }
 
+function followEntity(bot, entity, range) {
+  pathfinderSetGoal(bot, goalFollow(entity, range), true);
+}
+
 module.exports = {
+  installPathing,
   stopPathfinder,
   goalNear,
   goalBlock,
@@ -78,5 +84,6 @@ module.exports = {
   gotoNearBlock,
   isDroppedItemEntity,
   getDroppedItemsNear,
-  findDroppedItemNear
+  findDroppedItemNear,
+  followEntity
 };

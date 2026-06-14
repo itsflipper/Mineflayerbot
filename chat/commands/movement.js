@@ -1,6 +1,6 @@
 const config = require('../../config');
 const { resolveTargetPosition } = require('./shared/locate');
-const { goalNear, goalFollow, stopPathfinder } = require('../../actions/navigation');
+const { goalNear, stopPathfinder, safeGoto, followEntity } = require('../../actions/navigation');
 const { REPLIES } = require('../replies');
 
 const followingUsers = new Set();
@@ -19,7 +19,7 @@ function stopFollowing(username) {
 
 function startFollowing(bot, username, entity) {
   followingUsers.add(username);
-  bot.pathfinder.setGoal(goalFollow(entity, 2), true);
+  followEntity(bot, entity, 2);
 }
 
 async function runGotoCommand({ bot, username, args, reply }) {
@@ -31,7 +31,7 @@ async function runGotoCommand({ bot, username, args, reply }) {
   }
 
   stopFollowing(username);
-  await bot.pathfinder.goto(goalNear(position, 1));
+  await safeGoto(bot, goalNear(position, 1), 'goto_command');
 }
 
 async function runToggleFollowCommand({ bot, username, reply }) {
