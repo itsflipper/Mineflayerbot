@@ -4,9 +4,7 @@ const { toBlockPosition } = require('../utils/position');
 const { installPathing, pathfinderGoto, pathfinderSetGoal, pathfinderStop } = require('../utils/pathing/index');
 
 async function stopPathfinder(bot, ticks = 2) {
-  if (bot.pathfinder) {
-    pathfinderStop(bot);
-  }
+  pathfinderStop(bot);
 
   if (typeof bot.clearControlStates === 'function') {
     bot.clearControlStates();

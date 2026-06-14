@@ -19,7 +19,9 @@ function pathfinderSetMovements(bot, movements) {
 }
 
 function pathfinderStop(bot) {
-  bot.pathfinder.setGoal(null);
+  if (bot.pathfinder) {
+    bot.pathfinder.setGoal(null);
+  }
 }
 
 module.exports = {
