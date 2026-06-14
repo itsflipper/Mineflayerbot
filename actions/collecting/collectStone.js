@@ -1,7 +1,7 @@
 const config = require('../../config');
 const { canDig } = require('../../safety/baseProtector');
 const { wait, waitTicks } = require('../../utils/timing');
-const { gotoNearPosition, getDroppedItemsNear } = require('../navigation');
+const { gotoNearPosition, getDroppedItemsNear, stopPathfinder } = require('../navigation');
 const { digBlockAt, digStaircaseDown, climbStaircaseUp, digBoxInFront } = require('../digging');
 const { STONE_NAMES, COBBLESTONE_NAMES, countCobblestone } = require('../../data/items/stoneTypes');
 
@@ -85,9 +85,6 @@ function hasEquippablePickaxe(bot) {
   return Boolean(findEquippablePickaxe(bot));
 }
 
-// Stellt sicher, dass die Pickaxe in der Hand ist - wird vor JEDEM Abbauversuch
-// aufgerufen (nicht nur "wenn vorhanden"), damit der Bot nicht mit der bloßen
-// Hand abbaut und dadurch keinen Cobblestone-Drop bekommt.
 async function ensurePickaxeEquipped(bot) {
   const pickaxe = findEquippablePickaxe(bot);
   if (!pickaxe) return false;
@@ -105,45 +102,23 @@ async function gotoNearBlock(bot, block, minCobblestoneCount) {
   if (gotoResult.success) return gotoResult;
 
   if (hasTargetCobblestoneCount(bot, minCobblestoneCount)) {
-    return {
-      success: true,
-      recovered: true,
-      warning: gotoResult.error
-    };
+    return { success: true, recovered: true, warning: gotoResult.error };
   }
 
   const distance = bot.entity.position.distanceTo(block.position);
   if (distance <= 5) {
-    return {
-      success: true,
-      closeEnough: true,
-      warning: gotoResult.error
-    };
+    return { success: true, closeEnough: true, warning: gotoResult.error };
   }
 
   return gotoResult;
 }
 
 // ---------------------------------------------------------------------
-// Abstieg: Treppe + Kasten (siehe actions/digging.js)
+// Abstieg
 // ---------------------------------------------------------------------
-//
-// Treppe + Kasten laufen IMMER, sobald der Bot nicht bereits weit genug
-// unter dem Meeresspiegel steht (digStaircaseDown). Die Treppe gräbt
-// 2 zusätzliche Stufen, nachdem sie zum ersten Mal auf Stone trifft
-// (extraStepsAfterStone in digStaircaseDown), damit unten genug Platz/
-// Stein für den Kasten ist. Danach wird zusätzlich ein 3x3x3 Kasten vor
-// ihm freigegraben (digBoxInFront), damit genug Stone/Deepslate für
-// mehrere Abbauversuche erreichbar ist.
-//
-// digBoxInFront läuft intern zum Zentrum des Kastens (collectDropsInBox),
-// wodurch der Bot die Treppenlinie verlässt. Damit climbStaircaseUp danach
-// wieder an der richtigen Stelle ansetzen kann, läuft der Bot nach dem
-// Kasten-Graben zurück zur untersten Treppenstufe.
 
 function isFarBelowSeaLevel(bot) {
-  const currentY = bot.entity.position.y;
-  return currentY <= SEA_LEVEL_Y - STAIRCASE_MAX_DEPTH;
+  return bot.entity.position.y <= SEA_LEVEL_Y - STAIRCASE_MAX_DEPTH;
 }
 
 function isBackAtSurface(bot, startPosition) {
@@ -174,12 +149,11 @@ async function descendToStone(bot) {
 
   return { descended: true, staircaseResult, boxResult, startPosition };
 }
+
 async function climbBackUp(bot, staircasePath, startPosition) {
   if (staircasePath.length === 0) {
     return { climbed: 0, atSurface: true };
   }
-
-  if (bot.pathfinder) bot.pathfinder.setGoal(null);
 
   const climbResult = await climbStaircaseUp(bot, staircasePath);
 
@@ -187,9 +161,6 @@ async function climbBackUp(bot, staircasePath, startPosition) {
     return { ...climbResult, atSurface: true };
   }
 
-  // Treppe war unvollständig oder hat nicht gereicht - direkt nach oben graben
-  // und gleichzeitig vorwärts/springen, damit der Bot sicher nicht mehr im
-  // Loch steht, bevor die Task weiterläuft.
   while (!isBackAtSurface(bot, startPosition)) {
     const above = bot.entity.position.floored().offset(0, 2, 0);
     const digResult = await digBlockAt(bot, above);
@@ -211,10 +182,6 @@ async function climbBackUp(bot, staircasePath, startPosition) {
 // Abbauen
 // ---------------------------------------------------------------------
 
-// Cobblestone droppt nur, wenn der Block mit einer Pickaxe abgebaut wird.
-// ensurePickaxeEquipped() wird hier direkt vor jedem Abbauversuch
-// aufgerufen, damit der erste Abbau nicht versehentlich mit der bloßen
-// Hand passiert.
 async function digStone(bot, stoneBlock, minCobblestoneCount) {
   const freshBlock = bot.blockAt(stoneBlock.position);
 
@@ -256,9 +223,7 @@ async function digStone(bot, stoneBlock, minCobblestoneCount) {
 }
 
 // ---------------------------------------------------------------------
-// Eine Iteration: Stone finden, dorthin gehen, abbauen.
-// Extrahiert aus der Hauptschleife (Inversion: früh zurückkehren statt
-// verschachtelter if/else-Ketten).
+// Eine Iteration
 // ---------------------------------------------------------------------
 
 async function tryCollectOneStone(bot, minCobblestoneCount, maxDistance, errors) {

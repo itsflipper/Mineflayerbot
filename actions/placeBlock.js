@@ -3,10 +3,10 @@ const config = require('../config');
 const { canPlace } = require('../safety/baseProtector');
 const { waitTicks } = require('../utils/timing');
 const { sameBlockPosition } = require('../utils/position');
+const { stopPathfinder } = require('./navigation');
 
 const FACE_UP = new Vec3(0, 1, 0);
 
-// Wichtig: KEIN { x: 0, z: 0 }, weil das der eigene Fußblock des Bots wäre.
 const FLOOR_OFFSETS = [
   { x: 1, z: 0 },
   { x: -1, z: 0 },
@@ -78,13 +78,8 @@ function collectPlacementSpots(bot) {
 }
 
 async function prepareForPlacement(bot, targetPosition) {
-  if (bot.pathfinder) bot.pathfinder.setGoal(null);
-  if (typeof bot.clearControlStates === 'function') bot.clearControlStates();
-
-  await waitTicks(bot, 2);
-
+  await stopPathfinder(bot, 2);
   await bot.lookAt(targetPosition.offset(0.5, 0.5, 0.5), true);
-
   await waitTicks(bot, 1);
 }
 
@@ -105,7 +100,6 @@ async function tryPlaceAtSpot(bot, item, spot) {
   try {
     await bot.placeBlock(spot.referenceBlock, FACE_UP);
   } catch (err) {
-    // Falls Mineflayer auf blockUpdate wartet, aber der Serverzustand trotzdem schon passt.
     await waitTicks(bot, 4);
 
     const afterTimeoutBlock = bot.blockAt(spot.targetPosition);

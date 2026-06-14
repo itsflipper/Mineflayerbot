@@ -1,5 +1,5 @@
 const mineflayer = require('mineflayer');
-const { pathfinder, Movements } = require('mineflayer-pathfinder');
+const { pathfinder } = require('mineflayer-pathfinder');
 
 const config = require('./config');
 const { registerChatHandlers } = require('./chat/chatHandler');
@@ -7,6 +7,7 @@ const { botState, handleSpawn, handleDeath } = require('./state/botState');
 const taskRunner = require('./tasks/taskRunner');
 const recoverDeathItems = require('./tasks/recoverDeathItems');
 const craftPlaceCraftingTable = require('./tasks/craftPlaceCraftingTable');
+const { installPathing } = require('./actions/navigation');
 
 function handleUncaughtException(error) {
   console.error('[Uncaught Exception]', error);
@@ -28,15 +29,6 @@ function createBotOptions() {
 
 function loadPlugins(bot) {
   bot.loadPlugin(pathfinder);
-}
-
-function createMovements(bot) {
-  const mcData = require('minecraft-data')(bot.version);
-  return new Movements(bot, mcData);
-}
-
-function setupPathfinderMovements(bot) {
-  bot.pathfinder.setMovements(createMovements(bot));
 }
 
 function handleKick(reason) {
@@ -80,7 +72,7 @@ async function runAutoStartTask(bot) {
 }
 
 async function handleFirstSpawn(bot) {
-  setupPathfinderMovements(bot);
+  installPathing(bot);
   handleSpawn(bot);
   await runAutoStartTask(bot);
 }
