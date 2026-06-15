@@ -6,7 +6,7 @@ const DOOR_SEARCH_RADIUS = 15;
 const TOGGLE_COOLDOWN_MS = 1000;
 
 // ---------------------------------------------------------------------
-// Properties – zentral lesen, nie direkt block.properties
+// Properties
 // ---------------------------------------------------------------------
 
 function getProps(block) {
@@ -83,7 +83,6 @@ function scoreDoor(door, bot, goalVec) {
 
 function chooseBestDoor(bot, doors, goalVec) {
   if (doors.length === 0) return null;
-
   return doors.reduce((best, door) =>
     scoreDoor(door, bot, goalVec) > scoreDoor(best, bot, goalVec) ? door : best
   );
@@ -96,8 +95,8 @@ function chooseBestDoor(bot, doors, goalVec) {
 const CARDINAL_OFFSETS = [
   new Vec3(0, 0, -1),
   new Vec3(0, 0,  1),
-  new Vec3( 1, 0, 0),
-  new Vec3(-1, 0, 0)
+  new Vec3( 1, 0,  0),
+  new Vec3(-1, 0,  0)
 ];
 
 function isWalkable(bot, pos) {
@@ -170,7 +169,7 @@ function markToggled(doorPos) {
 }
 
 // ---------------------------------------------------------------------
-// Interner Toggle – nie direkt aufrufen, nur über ensureDoor*
+// Interner Toggle
 // ---------------------------------------------------------------------
 
 async function _toggleDoor(bot, doorBlock) {
@@ -196,9 +195,8 @@ async function ensureDoorOpen(bot, pos) {
   await _toggleDoor(bot, door);
 
   const after = getLowerDoorBlock(bot, pos);
-  return isDoorOpen(after)
-    ? { success: true, opened: true }
-    : { success: false, reason: 'door_did_not_open' };
+  if (isDoorOpen(after)) return { success: true, opened: true };
+  return { success: false, reason: 'door_did_not_open' };
 }
 
 async function ensureDoorClosed(bot, pos) {
@@ -210,9 +208,8 @@ async function ensureDoorClosed(bot, pos) {
   await _toggleDoor(bot, door);
 
   const after = getLowerDoorBlock(bot, pos);
-  return !isDoorOpen(after)
-    ? { success: true, closed: true }
-    : { success: false, reason: 'door_did_not_close' };
+  if (!isDoorOpen(after)) return { success: true, closed: true };
+  return { success: false, reason: 'door_did_not_close' };
 }
 
 // ---------------------------------------------------------------------
@@ -225,7 +222,7 @@ async function gotoBlockExact(bot, pos) {
 }
 
 // ---------------------------------------------------------------------
-// Manueller Transit – kein Pathfinder, nur Vorwärtsschritte
+// Manueller Transit
 // ---------------------------------------------------------------------
 
 async function manualStepToward(bot, targetPos) {
@@ -266,12 +263,17 @@ async function walkThroughDoor(bot, doorBlock, goalVec) {
   if (!openResult.success) return openResult;
 
   bot.pathfinder.setGoal(null);
+  bot.clearControlStates();
+  await waitTicks(bot, 1);
 
-  const transitResult = await manualStepThroughDoor(bot, exitSide);
-  if (!transitResult.success) return { success: false, reason: 'transit_failed' };
+  let transitResult;
+  try {
+    transitResult = await manualStepThroughDoor(bot, exitSide);
+  } finally {
+    if (!wasOpen) await ensureDoorClosed(bot, doorPos);
+  }
 
-  if (!wasOpen) await ensureDoorClosed(bot, doorPos);
-
+  if (!transitResult?.success) return { success: false, reason: 'transit_failed' };
   return { success: true };
 }
 
@@ -290,9 +292,8 @@ async function tryDoorRetry(bot, goalVec, options = {}) {
   if (!door) return { success: false, reason: 'no_door_found' };
 
   const result = await walkThroughDoor(bot, door, goalVec);
-  return result.success
-    ? { success: true, door: door.position }
-    : result;
+  if (result.success) return { success: true, door: door.position };
+  return result;
 }
 
 module.exports = {

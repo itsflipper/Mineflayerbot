@@ -39,12 +39,13 @@ function pathfinderSetMovements(bot, movements) {
 function pathfinderStop(bot) {
   if (!bot.pathfinder) return;
   bot.pathfinder.setGoal(null);
+  bot.clearControlStates();
 }
 
 // ---------------------------------------------------------------------
-// Goto mit optionalem Tür-Retry
+// goalToVec – robuste Vec3-Extraktion aus beliebigen Goal-Objekten
 // ---------------------------------------------------------------------
-// utils/pathing/index.js
+
 function goalToVec(goal, fallback) {
   if (!goal) return fallback;
   if (typeof goal.toVec === 'function') return goal.toVec();
@@ -54,20 +55,34 @@ function goalToVec(goal, fallback) {
   return fallback;
 }
 
+// ---------------------------------------------------------------------
+// Goto mit Tür-Retry
+// ---------------------------------------------------------------------
+
+async function _retryWithDoor(bot, goal, worldId) {
+  const goalVec = goalToVec(goal, bot.entity.position.floored());
+
+  const retryResult = await tryDoorRetry(bot, goalVec, {
+    setProfileFn: setMovementProfile
+  });
+
+  if (!retryResult.success) return false;
+
+  // Profil wiederherstellen und weiter zum ursprünglichen Ziel
+  if (worldId) applyAutomaticProfile(bot, worldId);
+  await _gotoRaw(bot, goal);
+  return true;
+}
 
 async function pathfinderGoto(bot, goal, worldId) {
   if (worldId) applyAutomaticProfile(bot, worldId);
 
   try {
     await _gotoRaw(bot, goal);
+    return;
   } catch (firstError) {
-    const goalVec = goalToVec(goal, bot.entity.position.floored());
-
-    const retryResult = await tryDoorRetry(bot, goalVec, {
-      setProfileFn: setMovementProfile
-    });
-
-    if (!retryResult.success) throw firstError;
+    const handled = await _retryWithDoor(bot, goal, worldId);
+    if (!handled) throw firstError;
   }
 }
 
