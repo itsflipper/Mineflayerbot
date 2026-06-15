@@ -59,6 +59,17 @@ function goalToVec(goal, fallback) {
 // Goto mit PreCheck + Retry
 // ---------------------------------------------------------------------
 
+const STUCK_DISTANCE_EPSILON = 0.25;
+const MAX_STUCK_ATTEMPTS = 3;
+
+function hasBotMoved(positionBefore, positionAfter) {
+  return positionBefore.distanceTo(positionAfter) > STUCK_DISTANCE_EPSILON;
+}
+
+function createStuckError(goal) {
+  return new Error(`pathfinderGoto: stuck after ${MAX_STUCK_ATTEMPTS} attempts, goal: ${JSON.stringify(goal)}`);
+}
+
 async function _runPreCheckAndGoto(bot, goal, goalVec, worldId) {
   const preCheck = await tryDoorPreCheck(bot, goalVec, { setProfileFn: setMovementProfile });
   if (!preCheck.success) return false;
@@ -77,10 +88,8 @@ async function _retryWithDoor(bot, goal, goalVec, worldId) {
   return true;
 }
 
-async function pathfinderGoto(bot, goal, worldId) {
+async function _attemptGoto(bot, goal, goalVec, worldId) {
   if (worldId) applyAutomaticProfile(bot, worldId);
-
-  const goalVec = goalToVec(goal, bot.entity.position.floored());
 
   const preHandled = await _runPreCheckAndGoto(bot, goal, goalVec, worldId);
   if (preHandled) return;
@@ -90,6 +99,30 @@ async function pathfinderGoto(bot, goal, worldId) {
   } catch (firstError) {
     const retryHandled = await _retryWithDoor(bot, goal, goalVec, worldId);
     if (!retryHandled) throw firstError;
+  }
+}
+
+async function pathfinderGoto(bot, goal, worldId) {
+  const goalVec = goalToVec(goal, bot.entity.position.floored());
+  let stuckAttempts = 0;
+
+  while (true) {
+    const positionBefore = bot.entity.position.clone();
+
+    try {
+      await _attemptGoto(bot, goal, goalVec, worldId);
+      return;
+    } catch (_err) {
+      // fall through to stuck check
+    }
+
+    if (hasBotMoved(positionBefore, bot.entity.position)) {
+      stuckAttempts = 0;
+      continue;
+    }
+
+    stuckAttempts++;
+    if (stuckAttempts >= MAX_STUCK_ATTEMPTS) throw createStuckError(goal);
   }
 }
 
