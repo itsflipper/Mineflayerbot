@@ -1,7 +1,13 @@
 const { createMovements } = require('./movementFactory');
 const { getProfileForBot } = require('./profileSelector');
+const { tryDoorRetry } = require('./doorHandler');
+const { Vec3 } = require('vec3');
 
 const DEFAULT_PROFILE = 'safePathfinder';
+
+// ---------------------------------------------------------------------
+// Profil-Verwaltung
+// ---------------------------------------------------------------------
 
 function installPathing(bot, profileName = DEFAULT_PROFILE) {
   const movements = createMovements(bot, profileName);
@@ -18,14 +24,12 @@ function applyAutomaticProfile(bot, worldId) {
   setMovementProfile(bot, profileName);
 }
 
-async function pathfinderGoto(bot, goal, worldId) {
-  if (worldId) applyAutomaticProfile(bot, worldId);
-  await bot.pathfinder.goto(goal);
-}
+// ---------------------------------------------------------------------
+// Direkter Pathfinder-Zugriff (nur hier erlaubt)
+// ---------------------------------------------------------------------
 
-function pathfinderSetGoal(bot, goal, dynamic = false, worldId) {
-  if (worldId) applyAutomaticProfile(bot, worldId);
-  bot.pathfinder.setGoal(goal, dynamic);
+async function _gotoRaw(bot, goal) {
+  await bot.pathfinder.goto(goal);
 }
 
 function pathfinderSetMovements(bot, movements) {
@@ -35,6 +39,41 @@ function pathfinderSetMovements(bot, movements) {
 function pathfinderStop(bot) {
   if (!bot.pathfinder) return;
   bot.pathfinder.setGoal(null);
+}
+
+// ---------------------------------------------------------------------
+// Goto mit optionalem Tür-Retry
+// ---------------------------------------------------------------------
+// utils/pathing/index.js
+function goalToVec(goal, fallback) {
+  if (!goal) return fallback;
+  if (typeof goal.toVec === 'function') return goal.toVec();
+  if (Number.isFinite(goal.x) && Number.isFinite(goal.y) && Number.isFinite(goal.z)) {
+    return new Vec3(Math.floor(goal.x), Math.floor(goal.y), Math.floor(goal.z));
+  }
+  return fallback;
+}
+
+
+async function pathfinderGoto(bot, goal, worldId) {
+  if (worldId) applyAutomaticProfile(bot, worldId);
+
+  try {
+    await _gotoRaw(bot, goal);
+  } catch (firstError) {
+    const goalVec = goalToVec(goal, bot.entity.position.floored());
+
+    const retryResult = await tryDoorRetry(bot, goalVec, {
+      setProfileFn: setMovementProfile
+    });
+
+    if (!retryResult.success) throw firstError;
+  }
+}
+
+function pathfinderSetGoal(bot, goal, dynamic = false, worldId) {
+  if (worldId) applyAutomaticProfile(bot, worldId);
+  bot.pathfinder.setGoal(goal, dynamic);
 }
 
 module.exports = {

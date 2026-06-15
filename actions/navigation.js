@@ -1,4 +1,5 @@
 const { goals } = require('mineflayer-pathfinder');
+const config = require('../config');
 const { waitTicks } = require('../utils/timing');
 const { toBlockPosition } = require('../utils/position');
 const {
@@ -8,13 +9,20 @@ const {
   pathfinderSetGoal,
   pathfinderStop
 } = require('../utils/pathing/index');
-const config = require('../config');
+
+// ---------------------------------------------------------------------
+// Stoppen
+// ---------------------------------------------------------------------
 
 async function stopPathfinder(bot, ticks = 2) {
   pathfinderStop(bot);
   if (typeof bot.clearControlStates === 'function') bot.clearControlStates();
   await waitTicks(bot, ticks);
 }
+
+// ---------------------------------------------------------------------
+// Goal-Konstruktoren
+// ---------------------------------------------------------------------
 
 function goalNear(position, range) {
   return new goals.GoalNear(position.x, position.y, position.z, range);
@@ -29,8 +37,12 @@ function goalFollow(entity, range) {
   return new goals.GoalFollow(entity, range);
 }
 
-function createPathFailure(label, error) {
-  return { success: false, reason: 'path_failed', label, error: error.message };
+// ---------------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------------
+
+function createPathFailure(label, reason, error) {
+  return { success: false, reason, label, error };
 }
 
 async function safeGoto(bot, goal, label) {
@@ -39,7 +51,7 @@ async function safeGoto(bot, goal, label) {
     return { success: true };
   } catch (error) {
     await stopPathfinder(bot);
-    return createPathFailure(label, error);
+    return createPathFailure(label, 'path_failed', error.message);
   }
 }
 
@@ -50,6 +62,14 @@ async function gotoNearPosition(bot, position, range, label = 'goto_near') {
 async function gotoNearBlock(bot, block, range = 3, label) {
   return gotoNearPosition(bot, block.position, range, label || `goto_${block.name}`);
 }
+
+function followEntity(bot, entity, range) {
+  pathfinderSetGoal(bot, goalFollow(entity, range), true, config.worldId);
+}
+
+// ---------------------------------------------------------------------
+// Entity-Helfer
+// ---------------------------------------------------------------------
 
 function isDroppedItemEntity(entity) {
   return entity && entity.name === 'item' && entity.position;
@@ -63,10 +83,6 @@ function getDroppedItemsNear(bot, position, maxDistance) {
 
 function findDroppedItemNear(bot, position, maxDistance) {
   return getDroppedItemsNear(bot, position, maxDistance)[0] || null;
-}
-
-function followEntity(bot, entity, range) {
-  pathfinderSetGoal(bot, goalFollow(entity, range), true, config.worldId);
 }
 
 module.exports = {
