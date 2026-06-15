@@ -6,6 +6,10 @@ const PROFILES = {
   nearBase: {
     canDig: false,
     canPlace: false
+  },
+  doorSearch: {
+    canDig: false,
+    canPlace: false
   }
 };
 
