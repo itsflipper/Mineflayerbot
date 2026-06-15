@@ -9,26 +9,12 @@ const recoverDeathItems = require('./tasks/recoverDeathItems');
 const craftPlaceCraftingTable = require('./tasks/craftPlaceCraftingTable');
 const { installPathing } = require('./actions/navigation');
 
+// ---------------------------------------------------------------------
+// Fehlerbehandlung
+// ---------------------------------------------------------------------
+
 function handleUncaughtException(error) {
   console.error('[Uncaught Exception]', error);
-}
-
-function registerProcessHandlers() {
-  process.on('uncaughtException', handleUncaughtException);
-}
-
-function createBotOptions() {
-  return {
-    host: config.bot.host,
-    port: config.bot.port,
-    username: config.bot.username,
-    auth: config.bot.auth,
-    version: config.bot.version
-  };
-}
-
-function loadPlugins(bot) {
-  bot.loadPlugin(pathfinder);
 }
 
 function handleKick(reason) {
@@ -43,12 +29,9 @@ function handleEnd() {
   console.warn('[Disconnected]');
 }
 
-function registerLifecycleHandlers(bot) {
-  bot.on('kicked', handleKick);
-  bot.on('error', handleError);
-  bot.on('end', handleEnd);
-  bot.on('death', () => handleDeath(bot));
-}
+// ---------------------------------------------------------------------
+// Auto-Start Task
+// ---------------------------------------------------------------------
 
 function getAutoStartTask() {
   if (botState.lastDeathPosition) return recoverDeathItems;
@@ -56,25 +39,45 @@ function getAutoStartTask() {
   return null;
 }
 
-async function runTaskOnce(bot, task) {
-  taskRunner.start(task);
-  return taskRunner.tick(bot);
-}
-
 async function runAutoStartTask(bot) {
   if (!config.autoStart) return;
 
   const task = getAutoStartTask();
-
   if (!task) return;
 
-  await runTaskOnce(bot, task);
+  taskRunner.start(task);
+  await taskRunner.tick(bot);
 }
 
+// ---------------------------------------------------------------------
+// Spawn
+// ---------------------------------------------------------------------
+
 async function handleFirstSpawn(bot) {
-  installPathing(bot);
+  installPathing(bot, 'safePathfinder');
   handleSpawn(bot);
   await runAutoStartTask(bot);
+}
+
+// ---------------------------------------------------------------------
+// Bot-Setup
+// ---------------------------------------------------------------------
+
+function createBotOptions() {
+  return {
+    host: config.bot.host,
+    port: config.bot.port,
+    username: config.bot.username,
+    auth: config.bot.auth,
+    version: config.bot.version
+  };
+}
+
+function registerLifecycleHandlers(bot) {
+  bot.on('kicked', handleKick);
+  bot.on('error', handleError);
+  bot.on('end', handleEnd);
+  bot.on('death', () => handleDeath(bot));
 }
 
 function registerSpawnHandler(bot) {
@@ -84,7 +87,7 @@ function registerSpawnHandler(bot) {
 }
 
 function setupBot(bot) {
-  loadPlugins(bot);
+  bot.loadPlugin(pathfinder);
   registerChatHandlers(bot);
   registerLifecycleHandlers(bot);
   registerSpawnHandler(bot);
@@ -96,5 +99,9 @@ function createBot() {
   return bot;
 }
 
-registerProcessHandlers();
+// ---------------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------------
+
+process.on('uncaughtException', handleUncaughtException);
 createBot();

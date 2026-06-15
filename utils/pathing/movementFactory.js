@@ -27,6 +27,7 @@ function createMovements(bot, profileName) {
 
   movements.canDig = profile.canDig;
   movements.canOpenDoors = false;
+  movements.allow1by1towers = profile.allow1by1towers;
 
   if (!profile.canPlace) applyNoPlace(movements);
 

@@ -1,15 +1,18 @@
 const PROFILES = {
   safePathfinder: {
     canDig: true,
-    canPlace: true
+    canPlace: true,
+    allow1by1towers: false
   },
   nearBase: {
     canDig: false,
-    canPlace: false
+    canPlace: false,
+    allow1by1towers: false
   },
   doorSearch: {
     canDig: false,
-    canPlace: false
+    canPlace: false,
+    allow1by1towers: false
   }
 };
 
