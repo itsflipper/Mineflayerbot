@@ -1,6 +1,6 @@
 const { createMovements } = require('./movementFactory');
 const { getProfileForBot } = require('./profileSelector');
-const { tryDoorRetry } = require('./doorHandler');
+const { tryDoorRetry, tryDoorPreCheck } = require('./doorHandler');
 const { Vec3 } = require('vec3');
 
 const DEFAULT_PROFILE = 'safePathfinder';
@@ -56,19 +56,22 @@ function goalToVec(goal, fallback) {
 }
 
 // ---------------------------------------------------------------------
-// Goto mit Tür-Retry
+// Goto mit PreCheck + Retry
 // ---------------------------------------------------------------------
 
-async function _retryWithDoor(bot, goal, worldId) {
-  const goalVec = goalToVec(goal, bot.entity.position.floored());
+async function _runPreCheckAndGoto(bot, goal, goalVec, worldId) {
+  const preCheck = await tryDoorPreCheck(bot, goalVec, { setProfileFn: setMovementProfile });
+  if (!preCheck.success) return false;
 
-  const retryResult = await tryDoorRetry(bot, goalVec, {
-    setProfileFn: setMovementProfile
-  });
+  if (worldId) applyAutomaticProfile(bot, worldId);
+  await _gotoRaw(bot, goal);
+  return true;
+}
 
+async function _retryWithDoor(bot, goal, goalVec, worldId) {
+  const retryResult = await tryDoorRetry(bot, goalVec, { setProfileFn: setMovementProfile });
   if (!retryResult.success) return false;
 
-  // Profil wiederherstellen und weiter zum ursprünglichen Ziel
   if (worldId) applyAutomaticProfile(bot, worldId);
   await _gotoRaw(bot, goal);
   return true;
@@ -77,12 +80,16 @@ async function _retryWithDoor(bot, goal, worldId) {
 async function pathfinderGoto(bot, goal, worldId) {
   if (worldId) applyAutomaticProfile(bot, worldId);
 
+  const goalVec = goalToVec(goal, bot.entity.position.floored());
+
+  const preHandled = await _runPreCheckAndGoto(bot, goal, goalVec, worldId);
+  if (preHandled) return;
+
   try {
     await _gotoRaw(bot, goal);
-    return;
   } catch (firstError) {
-    const handled = await _retryWithDoor(bot, goal, worldId);
-    if (!handled) throw firstError;
+    const retryHandled = await _retryWithDoor(bot, goal, goalVec, worldId);
+    if (!retryHandled) throw firstError;
   }
 }
 

@@ -3,6 +3,8 @@ const { goals: { GoalBlock } } = require('mineflayer-pathfinder');
 const { waitTicks } = require('../timing');
 
 const DOOR_SEARCH_RADIUS = 15;
+const DOOR_PRECHECK_RADIUS = 10;
+const DOOR_PRECHECK_MIN_ALIGNMENT = 0.3;
 const TOGGLE_COOLDOWN_MS = 1000;
 
 // ---------------------------------------------------------------------
@@ -86,6 +88,13 @@ function chooseBestDoor(bot, doors, goalVec) {
   return doors.reduce((best, door) =>
     scoreDoor(door, bot, goalVec) > scoreDoor(best, bot, goalVec) ? door : best
   );
+}
+
+function isDoorOnPath(door, bot, goalVec) {
+  const botPos = bot.entity.position;
+  const toGoal = goalVec.minus(botPos).normalize();
+  const toDoor = door.position.minus(botPos).normalize();
+  return toGoal.dot(toDoor) >= DOOR_PRECHECK_MIN_ALIGNMENT;
 }
 
 // ---------------------------------------------------------------------
@@ -216,8 +225,13 @@ async function ensureDoorClosed(bot, pos) {
 // Approach per Pathfinder (nur bis vor die Tür)
 // ---------------------------------------------------------------------
 
-async function gotoBlockExact(bot, pos) {
-  const goal = new GoalBlock(pos.x, pos.y, pos.z);
+function isAtBlock(bot, pos, tolerance = 0.9) {
+  return bot.entity.position.distanceTo(pos.offset(0.5, 0, 0.5)) < tolerance;
+}
+
+async function gotoApproachSide(bot, approachSide) {
+  if (isAtBlock(bot, approachSide)) return;
+  const goal = new GoalBlock(approachSide.x, approachSide.y, approachSide.z);
   await bot.pathfinder.goto(goal);
 }
 
@@ -255,7 +269,7 @@ async function walkThroughDoor(bot, doorBlock, goalVec) {
   const { approachSide, exitSide } = sides;
   const doorPos = doorBlock.position;
 
-  await gotoBlockExact(bot, approachSide);
+  await gotoApproachSide(bot, approachSide);
 
   const wasOpen = isDoorOpen(getLowerDoorBlock(bot, doorPos));
 
@@ -278,7 +292,27 @@ async function walkThroughDoor(bot, doorBlock, goalVec) {
 }
 
 // ---------------------------------------------------------------------
-// Retry-Einstiegspunkt
+// PreCheck – läuft vor dem normalen Goto, erkennt nahe Türen auf dem Weg
+// ---------------------------------------------------------------------
+
+async function tryDoorPreCheck(bot, goalVec, options = {}) {
+  const { setProfileFn } = options;
+
+  if (setProfileFn) setProfileFn(bot, 'doorSearch');
+
+  const doors = findNearbyDoors(bot, DOOR_PRECHECK_RADIUS);
+  const doorsOnPath = doors.filter(door => isDoorOnPath(door, bot, goalVec));
+  const door = chooseBestDoor(bot, doorsOnPath, goalVec);
+
+  if (!door) return { success: false, reason: 'no_door_on_path' };
+
+  const result = await walkThroughDoor(bot, door, goalVec);
+  if (result.success) return { success: true, door: door.position };
+  return result;
+}
+
+// ---------------------------------------------------------------------
+// Retry – läuft nach einem Pathfinder-Fehler, größerer Suchradius
 // ---------------------------------------------------------------------
 
 async function tryDoorRetry(bot, goalVec, options = {}) {
@@ -306,5 +340,6 @@ module.exports = {
   findNearbyDoors,
   chooseBestDoor,
   walkThroughDoor,
+  tryDoorPreCheck,
   tryDoorRetry
 };
